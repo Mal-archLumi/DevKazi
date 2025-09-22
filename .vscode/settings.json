@@ -1,0 +1,6 @@
+{
+    "editor.aiStats.enabled": true,
+    "files.autoSave": "onWindowChange",
+    "editor.formatOnSave": false,
+    "postman.settings.dotenv-detection-notification-visibility": false
+}

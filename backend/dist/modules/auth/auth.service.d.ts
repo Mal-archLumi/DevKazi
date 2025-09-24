@@ -38,4 +38,14 @@ export declare class AuthService {
         schema: import("mongoose").Schema;
         __v: number;
     }>;
+    refreshToken(refreshToken: string): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    logout(userId: string): Promise<{
+        message: string;
+    }>;
+    changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{
+        message: string;
+    }>;
 }

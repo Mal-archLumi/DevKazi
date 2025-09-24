@@ -91,6 +91,39 @@ let AuthService = class AuthService {
         const { password, ...result } = user.toObject();
         return result;
     }
+    async refreshToken(refreshToken) {
+        try {
+            const payload = this.jwtService.verify(refreshToken);
+            const user = await this.userModel.findById(payload.sub);
+            if (!user) {
+                throw new common_1.UnauthorizedException('User not found');
+            }
+            const newPayload = { email: user.email, sub: user._id, roles: user.roles };
+            return {
+                access_token: this.jwtService.sign(newPayload),
+                refresh_token: this.jwtService.sign(newPayload, { expiresIn: '7d' }),
+            };
+        }
+        catch (error) {
+            throw new common_1.UnauthorizedException('Invalid refresh token');
+        }
+    }
+    async logout(userId) {
+        return { message: 'Logged out successfully' };
+    }
+    async changePassword(userId, currentPassword, newPassword) {
+        const user = await this.userModel.findById(userId);
+        if (!user) {
+            throw new common_1.UnauthorizedException('User not found');
+        }
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isCurrentPasswordValid) {
+            throw new common_1.BadRequestException('Current password is incorrect');
+        }
+        user.password = await bcrypt.hash(newPassword, 12);
+        await user.save();
+        return { message: 'Password changed successfully' };
+    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
@@ -99,4 +132,5 @@ exports.AuthService = AuthService = __decorate([
     __metadata("design:paramtypes", [mongoose_2.Model,
         jwt_1.JwtService])
 ], AuthService);
+;
 //# sourceMappingURL=auth.service.js.map

@@ -46,7 +46,11 @@ let TeamsService = class TeamsService {
         return team;
     }
     async addMember(teamId, memberData) {
-        return this.teamModel.findByIdAndUpdate(teamId, { $push: { members: memberData } }, { new: true });
+        const team = await this.teamModel.findByIdAndUpdate(teamId, { $push: { members: memberData } }, { new: true });
+        if (!team) {
+            throw new common_1.NotFoundException('Team not found');
+        }
+        return team;
     }
     async findBySkills(skills) {
         return this.teamModel.find({

@@ -35,11 +35,15 @@ export class TeamsService {
   }
 
   async addMember(teamId: string, memberData: any): Promise<Team> {
-    return this.teamModel.findByIdAndUpdate(
+    const team = await this.teamModel.findByIdAndUpdate(
       teamId,
       { $push: { members: memberData } },
       { new: true }
     );
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    return team;
   }
 
   async findBySkills(skills: string[]): Promise<Team[]> {

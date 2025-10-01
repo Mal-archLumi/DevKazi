@@ -38,48 +38,50 @@ const app_module_1 = require("../src/app.module");
 const users_service_1 = require("../src/modules/users/users.service");
 const teams_service_1 = require("../src/modules/teams/teams.service");
 const posts_service_1 = require("../src/modules/posts/posts.service");
+const mongoose_1 = require("@nestjs/mongoose");
+const user_schema_1 = require("../src/modules/users/schemas/user.schema");
+const post_schema_1 = require("../src/modules/posts/schemas/post.schema");
+const team_schema_1 = require("../src/modules/teams/schemas/team.schema");
 const bcrypt = __importStar(require("bcryptjs"));
 async function bootstrap() {
     console.log('🚀 Starting DevKazi database seeding...');
     const app = await core_1.NestFactory.createApplicationContext(app_module_1.AppModule);
     try {
+        const userModel = app.get((0, mongoose_1.getModelToken)(user_schema_1.User.name));
+        const teamModel = app.get((0, mongoose_1.getModelToken)(team_schema_1.Team.name));
+        const postModel = app.get((0, mongoose_1.getModelToken)(post_schema_1.Post.name));
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('📝 Seeding sample data...');
+        console.log('📝 Seeding sample data...');
         const usersService = app.get(users_service_1.UsersService);
         const teamsService = app.get(teams_service_1.TeamsService);
         const postsService = app.get(posts_service_1.PostsService);
-        console.log('📝 Seeding sample data...');
         const hashedPassword = await bcrypt.hash('password123', 12);
-        const users = await Promise.all([
-            usersService.create({
+        const users = await userModel.insertMany([
+            {
                 email: 'alice@student.com',
                 password: hashedPassword,
                 name: 'Alice Johnson',
                 skills: ['React', 'Node.js', 'TypeScript', 'UI/UX'],
                 bio: 'Frontend developer passionate about creating beautiful user experiences',
                 education: 'Computer Science at University Tech',
-                roles: ['student']
-            }),
-            usersService.create({
+                roles: ['student'],
+                isVerified: true
+            },
+            {
                 email: 'bob@student.com',
                 password: hashedPassword,
                 name: 'Bob Smith',
                 skills: ['Python', 'Data Science', 'Machine Learning', 'SQL'],
                 bio: 'Data science enthusiast with interest in AI and analytics',
                 education: 'Data Science at State University',
-                roles: ['student']
-            }),
-            usersService.create({
-                email: 'charlie@student.com',
-                password: hashedPassword,
-                name: 'Charlie Brown',
-                skills: ['Java', 'Spring Boot', 'AWS', 'Docker'],
-                bio: 'Backend developer focused on scalable systems',
-                education: 'Software Engineering at College Tech',
-                roles: ['student']
-            })
+                roles: ['student'],
+                isVerified: true
+            }
         ]);
         console.log('✅ Sample users created:', users.map(u => u.name));
-        const teams = await Promise.all([
-            teamsService.create({
+        const teams = await teamModel.insertMany([
+            {
                 name: 'WebDev Warriors',
                 description: 'Building modern web applications with cutting-edge tech',
                 owner: users[0]._id,
@@ -97,30 +99,11 @@ async function bootstrap() {
                 techStack: ['React', 'Node.js', 'MongoDB', 'Express'],
                 duration: '8 weeks',
                 status: 'active'
-            }),
-            teamsService.create({
-                name: 'Data Crushers',
-                description: 'Data science team tackling real-world problems',
-                owner: users[1]._id,
-                members: [{
-                        userId: users[1]._id,
-                        role: 'Data Scientist',
-                        joinedAt: new Date()
-                    }],
-                requiredRoles: [
-                    { role: 'Data Analyst', slots: 1, skills: ['Python', 'Pandas'], filled: 0 },
-                    { role: 'ML Engineer', slots: 1, skills: ['TensorFlow', 'Scikit-learn'], filled: 0 }
-                ],
-                projectName: 'Predictive Analytics Dashboard',
-                projectDescription: 'Creating ML models for business intelligence',
-                techStack: ['Python', 'TensorFlow', 'React', 'FastAPI'],
-                duration: '6 weeks',
-                status: 'active'
-            })
+            }
         ]);
         console.log('✅ Sample teams created:', teams.map(t => t.name));
-        const posts = await Promise.all([
-            postsService.create({
+        const posts = await postModel.insertMany([
+            {
                 title: 'Full-Stack Development Internship',
                 description: 'Join our team to build a real-world application from scratch',
                 team: teams[0]._id,
@@ -134,39 +117,20 @@ async function bootstrap() {
                 deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 status: 'active',
                 projectName: 'Task Management App'
-            }),
-            postsService.create({
-                title: 'Data Science Team Needed',
-                description: 'Looking for data enthusiasts to analyze customer behavior',
-                team: teams[1]._id,
-                type: 'team-formation',
-                roles: [
-                    { role: 'Data Analyst', slots: 1, skills: ['Python', 'SQL'], filled: 0 },
-                    { role: 'Visualization Expert', slots: 1, skills: ['Tableau', 'D3.js'], filled: 0 }
-                ],
-                requiredSkills: ['Python', 'Data Analysis', 'Statistics'],
-                duration: '6 weeks',
-                deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-                status: 'active',
-                projectName: 'Customer Analytics Dashboard'
-            })
+            }
         ]);
         console.log('✅ Sample posts created:', posts.map(p => p.title));
         console.log('🎉 Database seeding completed successfully!');
-        console.log('📧 Test user emails: alice@student.com, bob@student.com, charlie@student.com');
+        console.log('📧 Test user emails: alice@student.com, bob@student.com');
         console.log('🔑 Password for all: password123');
     }
     catch (error) {
         console.error('❌ Seeding failed:', error);
-        throw error;
     }
     finally {
         await app.close();
         process.exit(0);
     }
 }
-bootstrap().catch(err => {
-    console.error('💥 Seeding failed:', err);
-    process.exit(1);
-});
+bootstrap();
 //# sourceMappingURL=seed-data.js.map

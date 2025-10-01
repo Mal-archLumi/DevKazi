@@ -1,62 +1,119 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { User } from '../../users/schemas/user.schema';
 
-export type TeamMember = {
-  userId: Types.ObjectId;
-  role: string;
-  joinedAt: Date;
-};
+export type TeamDocument = Team & Document;
 
-export type RequiredRole = {
-  role: string;
-  slots: number;
-  skills: string[];
-  filled: number;
-};
+export enum TeamRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  MEMBER = 'member',
+}
+
+export enum TeamStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  ARCHIVED = 'archived',
+}
 
 @Schema({ timestamps: true })
-export class Team extends Document {
+export class Team {
   @Prop({ required: true })
   name: string;
 
   @Prop()
   description: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  owner: Types.ObjectId;
+  @Prop()
+  projectIdea: string;
 
-  @Prop([{
-    userId: { type: Types.ObjectId, ref: 'User' },
-    role: String,
-    joinedAt: Date
-  }])
-  members: TeamMember[];
+  @Prop({ type: [{ type: String }] })
+  requiredSkills: string[];
 
-  @Prop([{
-    role: String,
-    slots: Number,
-    skills: [String],
-    filled: { type: Number, default: 0 }
-  }])
-  requiredRoles: RequiredRole[];
+  @Prop({ type: [{ type: String }] })
+  preferredSkills: string[];
+
+  @Prop({ default: 5 })
+  maxMembers: number;
+
+  @Prop({
+    type: [
+      {
+        user: { type: Types.ObjectId, ref: 'User' },
+        role: { type: String, enum: TeamRole, default: TeamRole.MEMBER },
+        joinedAt: { type: Date, default: Date.now },
+      },
+    ],
+  })
+  members: Array<{
+    user: Types.ObjectId | User;
+    role: TeamRole;
+    joinedAt: Date;
+  }>;
+
+  @Prop({
+    type: {
+      isPublic: { type: Boolean, default: true },
+      allowJoinRequests: { type: Boolean, default: true },
+      requireApproval: { type: Boolean, default: true },
+    },
+  })
+  settings: {
+    isPublic: boolean;
+    allowJoinRequests: boolean;
+    requireApproval: boolean;
+  };
+
+  @Prop({
+    type: [{ type: Types.ObjectId, ref: 'User' }],
+  })
+  pendingInvites: Types.ObjectId[];
+
+  @Prop({
+    type: [
+      {
+        user: { type: Types.ObjectId, ref: 'User' },
+        message: String,
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+  })
+  joinRequests: Array<{
+    user: Types.ObjectId | User;
+    message: string;
+    createdAt: Date;
+  }>;
+
+  @Prop({ type: [{ type: String }] })
+  tags: string[];
 
   @Prop()
-  projectName: string;
+  avatarUrl: string;
+
+  @Prop({ default: TeamStatus.ACTIVE })
+  status: TeamStatus;
+
+  @Prop({ default: 0 })
+  currentProjectCount: number;
 
   @Prop()
-  projectDescription: string;
-
-  @Prop([String])
-  techStack: string[];
+  githubRepo: string;
 
   @Prop()
-  duration: string;
-
-  @Prop({ default: 'active' })
-  status: string;
+  projectDemoUrl: string;
 
   @Prop()
-  deadline: Date;
+  completedProjects: number;
+
+  @Prop()
+  successRate: number;
 }
 
 export const TeamSchema = SchemaFactory.createForClass(Team);
+
+// Create indexes for better search performance
+TeamSchema.index({ name: 'text', description: 'text', projectIdea: 'text' });
+TeamSchema.index({ 'members.user': 1 });
+TeamSchema.index({ requiredSkills: 1 });
+TeamSchema.index({ status: 1 });
+TeamSchema.index({ createdAt: -1 });

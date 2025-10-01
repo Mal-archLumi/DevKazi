@@ -20,20 +20,18 @@ export class AppController {
   @Get('test-db')
   async testDb() {
     try {
-      // Test database operation
-      if (!this.connection.db) {
-        throw new Error('Database connection not established');
-      }
-      const adminDb = this.connection.db.admin();
-      const result = await adminDb.ping();
+      // Simple database operation - count users
+      const usersCount = await this.connection.collection('users').countDocuments();
+      
       return { 
-        database: 'MongoDB', 
+        database: 'MongoDB Atlas', 
         status: 'connected', 
-        ping: result 
+        usersCount: usersCount,
+        collections: this.connection.db ? (await this.connection.db.listCollections().toArray()).map(c => c.name) : []
       };
     } catch (error) {
       return { 
-        database: 'MongoDB', 
+        database: 'MongoDB Atlas', 
         status: 'error', 
         error: error.message 
       };

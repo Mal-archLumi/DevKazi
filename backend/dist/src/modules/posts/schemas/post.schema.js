@@ -12,76 +12,136 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostSchema = exports.Post = void 0;
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
-let Post = class Post extends mongoose_2.Document {
+const swagger_1 = require("@nestjs/swagger");
+let Post = class Post {
+    _id;
     title;
     description;
+    requirements;
+    skillsRequired;
+    category;
     team;
-    type;
-    roles;
-    requiredSkills;
+    createdBy;
+    applicationDeadline;
     duration;
-    deadline;
-    status;
-    companyLogo;
-    projectName;
+    commitment;
+    location;
+    stipend;
+    positions;
     applicationsCount;
+    status;
+    tags;
+    isPublic;
+    createdAt;
+    updatedAt;
 };
 exports.Post = Post;
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, swagger_1.ApiProperty)({ description: 'Post ID' }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Post.prototype, "_id", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Post title' }),
+    (0, mongoose_1.Prop)({ required: true, trim: true, maxlength: 200 }),
     __metadata("design:type", String)
 ], Post.prototype, "title", void 0);
 __decorate([
-    (0, mongoose_1.Prop)(),
+    (0, swagger_1.ApiProperty)({ description: 'Post description' }),
+    (0, mongoose_1.Prop)({ required: true, trim: true }),
     __metadata("design:type", String)
 ], Post.prototype, "description", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Team', required: true }),
+    (0, swagger_1.ApiProperty)({ description: 'Requirements for the internship' }),
+    (0, mongoose_1.Prop)({ type: [String], default: [] }),
+    __metadata("design:type", Array)
+], Post.prototype, "requirements", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Skills required' }),
+    (0, mongoose_1.Prop)({ type: [String], default: [] }),
+    __metadata("design:type", Array)
+], Post.prototype, "skillsRequired", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Category of internship' }),
+    (0, mongoose_1.Prop)({ required: true, trim: true }),
+    __metadata("design:type", String)
+], Post.prototype, "category", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Team that created the post (optional)' }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Team', index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Post.prototype, "team", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, enum: ['internship', 'team-formation'], required: true }),
-    __metadata("design:type", String)
-], Post.prototype, "type", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'User who created the post' }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', required: true, index: true }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Post.prototype, "createdBy", void 0);
 __decorate([
-    (0, mongoose_1.Prop)([{
-            role: String,
-            slots: Number,
-            skills: [String],
-            filled: { type: Number, default: 0 }
-        }]),
-    __metadata("design:type", Array)
-], Post.prototype, "roles", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Application deadline' }),
+    (0, mongoose_1.Prop)({ required: true }),
+    __metadata("design:type", Date)
+], Post.prototype, "applicationDeadline", void 0);
 __decorate([
-    (0, mongoose_1.Prop)([String]),
-    __metadata("design:type", Array)
-], Post.prototype, "requiredSkills", void 0);
-__decorate([
-    (0, mongoose_1.Prop)(),
+    (0, swagger_1.ApiProperty)({ description: 'Internship duration' }),
+    (0, mongoose_1.Prop)({ required: true }),
     __metadata("design:type", String)
 ], Post.prototype, "duration", void 0);
 __decorate([
-    (0, mongoose_1.Prop)(),
-    __metadata("design:type", Date)
-], Post.prototype, "deadline", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Commitment level' }),
+    (0, mongoose_1.Prop)({ required: true, enum: ['full-time', 'part-time', 'contract'] }),
+    __metadata("design:type", String)
+], Post.prototype, "commitment", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 'active' }),
+    (0, swagger_1.ApiProperty)({ description: 'Location type' }),
+    (0, mongoose_1.Prop)({ required: true, enum: ['remote', 'hybrid', 'onsite'] }),
+    __metadata("design:type", String)
+], Post.prototype, "location", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Stipend amount' }),
+    (0, mongoose_1.Prop)({ min: 0 }),
+    __metadata("design:type", Number)
+], Post.prototype, "stipend", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Number of positions available' }),
+    (0, mongoose_1.Prop)({ required: true, min: 1, default: 1 }),
+    __metadata("design:type", Number)
+], Post.prototype, "positions", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Number of applications received' }),
+    (0, mongoose_1.Prop)({ default: 0, min: 0 }),
+    __metadata("design:type", Number)
+], Post.prototype, "applicationsCount", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Post status' }),
+    (0, mongoose_1.Prop)({
+        enum: ['active', 'closed', 'draft'],
+        default: 'active'
+    }),
     __metadata("design:type", String)
 ], Post.prototype, "status", void 0);
 __decorate([
-    (0, mongoose_1.Prop)(),
-    __metadata("design:type", String)
-], Post.prototype, "companyLogo", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Tags for searchability' }),
+    (0, mongoose_1.Prop)({ type: [String], default: [], index: true }),
+    __metadata("design:type", Array)
+], Post.prototype, "tags", void 0);
 __decorate([
-    (0, mongoose_1.Prop)(),
-    __metadata("design:type", String)
-], Post.prototype, "projectName", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Whether post is public' }),
+    (0, mongoose_1.Prop)({ default: true }),
+    __metadata("design:type", Boolean)
+], Post.prototype, "isPublic", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
-    __metadata("design:type", Number)
-], Post.prototype, "applicationsCount", void 0);
+    (0, swagger_1.ApiProperty)({ description: 'Created at timestamp' }),
+    __metadata("design:type", Date)
+], Post.prototype, "createdAt", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Updated at timestamp' }),
+    __metadata("design:type", Date)
+], Post.prototype, "updatedAt", void 0);
 exports.Post = Post = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, mongoose_1.Schema)({ timestamps: true, versionKey: false })
 ], Post);
 exports.PostSchema = mongoose_1.SchemaFactory.createForClass(Post);
+exports.PostSchema.index({ team: 1, status: 1 });
+exports.PostSchema.index({ category: 1, status: 1 });
+exports.PostSchema.index({ applicationDeadline: 1 });
+exports.PostSchema.index({ tags: 1 });
 //# sourceMappingURL=post.schema.js.map

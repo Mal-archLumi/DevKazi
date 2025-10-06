@@ -1,55 +1,96 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export type RoleRequirement = {
-  role: string;
-  slots: number;
-  skills: string[];
-  filled: number;
-};
+export type PostDocument = Post & Document;
 
-@Schema({ timestamps: true })
-export class Post extends Document {
-  @Prop({ required: true })
+@Schema({ timestamps: true, versionKey: false })
+export class Post {
+  @ApiProperty({ description: 'Post ID' })
+  _id: Types.ObjectId;
+
+  @ApiProperty({ description: 'Post title' })
+  @Prop({ required: true, trim: true, maxlength: 200 })
   title: string;
 
-  @Prop()
+  @ApiProperty({ description: 'Post description' })
+  @Prop({ required: true, trim: true })
   description: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Team', required: true })
-  team: Types.ObjectId;
+  @ApiProperty({ description: 'Requirements for the internship' })
+  @Prop({ type: [String], default: [] })
+  requirements: string[];
 
-  @Prop({ type: String, enum: ['internship', 'team-formation'], required: true })
-  type: string;
+  @ApiProperty({ description: 'Skills required' })
+  @Prop({ type: [String], default: [] })
+  skillsRequired: string[];
 
-  @Prop([{
-    role: String,
-    slots: Number,
-    skills: [String],
-    filled: { type: Number, default: 0 }
-  }])
-  roles: RoleRequirement[];
+  @ApiProperty({ description: 'Category of internship' })
+  @Prop({ required: true, trim: true })
+  category: string;
 
-  @Prop([String])
-  requiredSkills: string[];
+  @ApiPropertyOptional({ description: 'Team that created the post (optional)' })
+  @Prop({ type: Types.ObjectId, ref: 'Team', index: true }) // CHANGED: Removed required
+  team?: Types.ObjectId; // CHANGED: Made optional
 
-  @Prop()
+  @ApiProperty({ description: 'User who created the post' })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
+  createdBy: Types.ObjectId;
+
+  @ApiProperty({ description: 'Application deadline' })
+  @Prop({ required: true })
+  applicationDeadline: Date;
+
+  @ApiProperty({ description: 'Internship duration' })
+  @Prop({ required: true })
   duration: string;
 
-  @Prop()
-  deadline: Date;
+  @ApiProperty({ description: 'Commitment level' })
+  @Prop({ required: true, enum: ['full-time', 'part-time', 'contract'] })
+  commitment: string;
 
-  @Prop({ default: 'active' })
+  @ApiProperty({ description: 'Location type' })
+  @Prop({ required: true, enum: ['remote', 'hybrid', 'onsite'] })
+  location: string;
+
+  @ApiPropertyOptional({ description: 'Stipend amount' })
+  @Prop({ min: 0 })
+  stipend?: number;
+
+  @ApiProperty({ description: 'Number of positions available' })
+  @Prop({ required: true, min: 1, default: 1 })
+  positions: number;
+
+  @ApiProperty({ description: 'Number of applications received' })
+  @Prop({ default: 0, min: 0 })
+  applicationsCount: number;
+
+  @ApiProperty({ description: 'Post status' })
+  @Prop({ 
+    enum: ['active', 'closed', 'draft'],
+    default: 'active'
+  })
   status: string;
 
-  @Prop()
-  companyLogo?: string;
+  @ApiProperty({ description: 'Tags for searchability' })
+  @Prop({ type: [String], default: [], index: true })
+  tags: string[];
 
-  @Prop()
-  projectName: string;
+  @ApiProperty({ description: 'Whether post is public' })
+  @Prop({ default: true })
+  isPublic: boolean;
 
-  @Prop({ default: 0 })
-  applicationsCount: number;
+  @ApiProperty({ description: 'Created at timestamp' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Updated at timestamp' })
+  updatedAt: Date;
 }
 
 export const PostSchema = SchemaFactory.createForClass(Post);
+
+// Compound indexes for better query performance
+PostSchema.index({ team: 1, status: 1 });
+PostSchema.index({ category: 1, status: 1 });
+PostSchema.index({ applicationDeadline: 1 });
+PostSchema.index({ tags: 1 });

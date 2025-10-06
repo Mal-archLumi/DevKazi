@@ -9,11 +9,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApplicationsModule = void 0;
 const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
-const applications_service_1 = require("./applications.service");
 const applications_controller_1 = require("./applications.controller");
+const applications_service_1 = require("./applications.service");
 const application_schema_1 = require("./schemas/application.schema");
 const posts_module_1 = require("../posts/posts.module");
-const users_module_1 = require("../users/users.module");
+const teams_module_1 = require("../teams/teams.module");
 let ApplicationsModule = class ApplicationsModule {
 };
 exports.ApplicationsModule = ApplicationsModule;
@@ -21,11 +21,11 @@ exports.ApplicationsModule = ApplicationsModule = __decorate([
     (0, common_1.Module)({
         imports: [
             mongoose_1.MongooseModule.forFeature([{ name: application_schema_1.Application.name, schema: application_schema_1.ApplicationSchema }]),
-            posts_module_1.PostsModule,
-            users_module_1.UsersModule,
+            (0, common_1.forwardRef)(() => posts_module_1.PostsModule),
+            (0, common_1.forwardRef)(() => teams_module_1.TeamsModule),
         ],
-        providers: [applications_service_1.ApplicationsService],
         controllers: [applications_controller_1.ApplicationsController],
+        providers: [applications_service_1.ApplicationsService],
         exports: [applications_service_1.ApplicationsService],
     })
 ], ApplicationsModule);

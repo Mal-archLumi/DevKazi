@@ -19,7 +19,7 @@ const update_profile_dto_1 = require("./dto/update-profile.dto");
 const search_users_dto_1 = require("./dto/search-users.dto");
 const skills_dto_1 = require("./dto/skills.dto");
 const user_response_dto_1 = require("./dto/user-response.dto");
-const jwt_auth_guard_1 = require("../../auth/guards/jwt-auth.guard");
+const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
 const swagger_1 = require("@nestjs/swagger");
 let UsersController = class UsersController {
     usersService;

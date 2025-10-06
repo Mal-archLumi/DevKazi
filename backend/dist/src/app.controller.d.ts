@@ -1,6 +1,7 @@
 import { Connection } from 'mongoose';
 export declare class AppController {
     private readonly connection;
+    getHello(): any;
     constructor(connection: Connection);
     getHealth(): {
         status: string;

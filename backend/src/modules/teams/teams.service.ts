@@ -3,7 +3,8 @@ import {
   NotFoundException, 
   ForbiddenException, 
   BadRequestException,
-  InternalServerErrorException 
+  InternalServerErrorException,
+  Logger 
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -15,10 +16,67 @@ import { InviteMemberDto } from './dto/invite-member.dto';
 
 @Injectable()
 export class TeamsService {
+  private readonly logger = new Logger(TeamsService.name);
+
   constructor(
     @InjectModel(Team.name) private teamModel: Model<TeamDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
+
+  /**
+   * CRITICAL FIX: Safely extract user ID from any user reference
+   * This handles ObjectId, populated UserDocument, and string IDs
+   */
+  private getUserId(userRef: Types.ObjectId | UserDocument | any): string {
+    try {
+      // If it's already an ObjectId
+      if (userRef instanceof Types.ObjectId) {
+        return userRef.toString();
+      }
+      
+      // If it's a UserDocument with _id
+      if (userRef && userRef._id) {
+        return (userRef._id as Types.ObjectId).toString();
+      }
+      
+      // If it's already a string
+      if (typeof userRef === 'string') {
+        return userRef;
+      }
+      
+      // Last resort - convert to string
+      return String(userRef);
+    } catch (error) {
+      this.logger.warn(`Failed to extract user ID from: ${userRef}`);
+      throw new BadRequestException('Invalid user reference');
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Check if user is owner or admin of team
+   * Uses direct comparison with proper type handling
+   */
+  private isUserOwnerOrAdmin(team: TeamDocument, userId: string): boolean {
+    const member = team.members.find(m => {
+      const memberUserId = this.getUserId(m.user);
+      return memberUserId === userId;
+    });
+    
+    return member ? [TeamRole.OWNER, TeamRole.ADMIN].includes(member.role) : false;
+  }
+
+  /**
+   * CRITICAL FIX: Check if user is owner of team
+   * Strict verification for delete operations
+   */
+  private isUserOwner(team: TeamDocument, userId: string): boolean {
+    const member = team.members.find(m => {
+      const memberUserId = this.getUserId(m.user);
+      return memberUserId === userId;
+    });
+    
+    return member ? member.role === TeamRole.OWNER : false;
+  }
 
   async create(createTeamDto: CreateTeamDto, userId: string): Promise<Team> {
     try {
@@ -29,26 +87,27 @@ export class TeamsService {
 
       const teamData = {
         ...createTeamDto,
-        members: [
-          {
-            user: new Types.ObjectId(userId),
-            role: TeamRole.OWNER,
-            joinedAt: new Date(),
-          },
-        ],
+        members: [{
+          user: new Types.ObjectId(userId),
+          role: TeamRole.OWNER,
+          joinedAt: new Date(),
+        }],
         settings: {
           isPublic: createTeamDto.isPublic ?? true,
           allowJoinRequests: createTeamDto.allowJoinRequests ?? true,
           requireApproval: createTeamDto.requireApproval ?? true,
         },
+        status: TeamStatus.ACTIVE,
       };
 
       const team = new this.teamModel(teamData);
-      return await team.save();
+      const savedTeam = await team.save();
+      
+      this.logger.log(`Team created: ${savedTeam._id} by user: ${userId}`);
+      return savedTeam;
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
+      this.logger.error(`Create team error: ${error.message}`);
+      if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException('Failed to create team');
     }
   }
@@ -65,13 +124,13 @@ export class TeamsService {
         .populate('members.user', 'name email avatar skills')
         .sort({ createdAt: -1 });
 
-      if (search) {
+      if (search && search.trim()) {
         query = query.find({
           $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } },
-            { projectIdea: { $regex: search, $options: 'i' } },
-            { tags: { $in: [new RegExp(search, 'i')] } },
+            { name: { $regex: search.trim(), $options: 'i' } },
+            { description: { $regex: search.trim(), $options: 'i' } },
+            { projectIdea: { $regex: search.trim(), $options: 'i' } },
+            { tags: { $in: [new RegExp(search.trim(), 'i')] } },
           ],
         });
       }
@@ -90,6 +149,7 @@ export class TeamsService {
         totalPages 
       };
     } catch (error) {
+      this.logger.error(`Failed to fetch teams: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch teams');
     }
   }
@@ -111,8 +171,13 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      return team as Team;
+      if (team.status !== TeamStatus.ACTIVE) {
+        throw new NotFoundException('Team not found or inactive');
+      }
+
+      return team;
     } catch (error) {
+      this.logger.error(`Failed to fetch team ${id}: ${error.message}`);
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
@@ -131,28 +196,27 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      const userMembership = team.members.find(member => 
-        (member.user as Types.ObjectId).toString() === userId && 
-        [TeamRole.OWNER, TeamRole.ADMIN].includes(member.role)
-      );
-
-      if (!userMembership) {
+      // SECURITY FIX: This should now properly return 403 for non-owners/admins
+      if (!this.isUserOwnerOrAdmin(team, userId)) {
         throw new ForbiddenException('Only team owners or admins can update the team');
       }
 
       const updatedTeam = await this.teamModel
-        .findByIdAndUpdate(id, updateTeamDto, { new: true, runValidators: true })
+        .findByIdAndUpdate(id, updateTeamDto, { 
+          new: true, 
+          runValidators: true 
+        })
         .exec();
       
       if (!updatedTeam) {
         throw new NotFoundException('Team not found after update');
       }
 
-      return updatedTeam as Team;
+      this.logger.log(`Team updated: ${id} by user: ${userId}`);
+      return updatedTeam;
     } catch (error) {
-      if (error instanceof NotFoundException || 
-          error instanceof ForbiddenException || 
-          error instanceof BadRequestException) {
+      this.logger.error(`Failed to update team ${id}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to update team');
@@ -170,12 +234,8 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      const userMembership = team.members.find(member => 
-        (member.user as Types.ObjectId).toString() === userId && 
-        member.role === TeamRole.OWNER
-      );
-
-      if (!userMembership) {
+      // SECURITY FIX: This should now properly return 403 for non-owners
+      if (!this.isUserOwner(team, userId)) {
         throw new ForbiddenException('Only team owner can delete the team');
       }
 
@@ -183,10 +243,11 @@ export class TeamsService {
       if (!result) {
         throw new NotFoundException('Team not found during deletion');
       }
+
+      this.logger.log(`Team deleted: ${id} by user: ${userId}`);
     } catch (error) {
-      if (error instanceof NotFoundException || 
-          error instanceof ForbiddenException || 
-          error instanceof BadRequestException) {
+      this.logger.error(`Failed to delete team ${id}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to delete team');
@@ -204,33 +265,36 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      // Check if inviter is owner or admin
-      const inviterMembership = team.members.find(member => 
-        (member.user as Types.ObjectId).toString() === inviterId && 
-        [TeamRole.OWNER, TeamRole.ADMIN].includes(member.role)
-      );
-
-      if (!inviterMembership) {
+      // SECURITY FIX: Only owners/admins can invite
+      if (!this.isUserOwnerOrAdmin(team, inviterId)) {
         throw new ForbiddenException('Only team owners or admins can invite members');
       }
 
       let user: UserDocument | null = null;
+      
       if (inviteMemberDto.userId) {
         if (!Types.ObjectId.isValid(inviteMemberDto.userId)) {
           throw new BadRequestException('Invalid user ID');
         }
         user = await this.userModel.findById(inviteMemberDto.userId);
       } else if (inviteMemberDto.email) {
-        user = await this.userModel.findOne({ email: inviteMemberDto.email });
+        user = await this.userModel.findOne({ 
+          email: inviteMemberDto.email.toLowerCase().trim() 
+        });
+      } else {
+        throw new BadRequestException('Either userId or email must be provided');
       }
 
       if (!user) {
         throw new NotFoundException('User not found');
       }
 
+      // Type-safe user ID access
+      const targetUserId = (user._id as Types.ObjectId).toString();
+
       // Check if user is already a member
       const isAlreadyMember = team.members.some(member => 
-        (member.user as Types.ObjectId).toString() === (user!._id as Types.ObjectId).toString()
+        this.getUserId(member.user) === targetUserId
       );
       if (isAlreadyMember) {
         throw new BadRequestException('User is already a team member');
@@ -238,7 +302,7 @@ export class TeamsService {
 
       // Check if user is already invited
       const isAlreadyInvited = team.pendingInvites.some(invite => 
-        (invite as Types.ObjectId).toString() === (user!._id as Types.ObjectId).toString()
+        this.getUserId(invite) === targetUserId
       );
       if (isAlreadyInvited) {
         throw new BadRequestException('User is already invited to the team');
@@ -251,11 +315,13 @@ export class TeamsService {
 
       // Add to pending invites
       team.pendingInvites.push(user._id as Types.ObjectId);
-      return await team.save();
+      const updatedTeam = await team.save();
+      
+      this.logger.log(`Member invited to team ${teamId}: ${targetUserId} by user: ${inviterId}`);
+      return updatedTeam;
     } catch (error) {
-      if (error instanceof NotFoundException || 
-          error instanceof ForbiddenException || 
-          error instanceof BadRequestException) {
+      this.logger.error(`Failed to invite member to team ${teamId}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to invite member');
@@ -273,14 +339,13 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      // Check if team is accepting join requests
-      if (!team.settings.allowJoinRequests) {
+      if (!team.settings.isPublic || !team.settings.allowJoinRequests) {
         throw new ForbiddenException('This team is not accepting join requests');
       }
 
       // Check if user is already a member
       const isAlreadyMember = team.members.some(member => 
-        (member.user as Types.ObjectId).toString() === userId
+        this.getUserId(member.user) === userId
       );
       if (isAlreadyMember) {
         throw new BadRequestException('You are already a member of this team');
@@ -288,7 +353,7 @@ export class TeamsService {
 
       // Check if already requested to join
       const hasPendingRequest = team.joinRequests.some(request => 
-        (request.user as Types.ObjectId).toString() === userId
+        this.getUserId(request.user) === userId
       );
       if (hasPendingRequest) {
         throw new BadRequestException('You already have a pending join request');
@@ -302,15 +367,16 @@ export class TeamsService {
       // Add join request
       team.joinRequests.push({
         user: new Types.ObjectId(userId),
-        message: message || 'I would like to join your team',
+        message: (message || 'I would like to join your team').trim(),
         createdAt: new Date(),
       });
 
-      return await team.save();
+      const updatedTeam = await team.save();
+      this.logger.log(`Join request submitted to team ${teamId} by user: ${userId}`);
+      return updatedTeam;
     } catch (error) {
-      if (error instanceof NotFoundException || 
-          error instanceof ForbiddenException || 
-          error instanceof BadRequestException) {
+      this.logger.error(`Failed to join team ${teamId}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to join team');
@@ -333,19 +399,13 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      // Check if approver is owner or admin
-      const approverMembership = team.members.find(member => 
-        (member.user as Types.ObjectId).toString() === approverId && 
-        [TeamRole.OWNER, TeamRole.ADMIN].includes(member.role)
-      );
-
-      if (!approverMembership) {
+      // SECURITY FIX: Only owners/admins can respond
+      if (!this.isUserOwnerOrAdmin(team, approverId)) {
         throw new ForbiddenException('Only team owners or admins can respond to join requests');
       }
 
-      // Find and remove the join request
       const requestIndex = team.joinRequests.findIndex(request => 
-        (request.user as Types.ObjectId).toString() === requestUserId
+        this.getUserId(request.user) === requestUserId
       );
       if (requestIndex === -1) {
         throw new NotFoundException('Join request not found');
@@ -353,9 +413,7 @@ export class TeamsService {
 
       team.joinRequests.splice(requestIndex, 1);
 
-      // If accepted, add as member
       if (accept) {
-        // Check team size limit
         if (team.members.length >= team.maxMembers) {
           throw new BadRequestException('Team has reached maximum member limit');
         }
@@ -367,11 +425,12 @@ export class TeamsService {
         });
       }
 
-      return await team.save();
+      const updatedTeam = await team.save();
+      this.logger.log(`Join request ${accept ? 'accepted' : 'rejected'} for team ${teamId}, user: ${requestUserId}`);
+      return updatedTeam;
     } catch (error) {
-      if (error instanceof NotFoundException || 
-          error instanceof ForbiddenException || 
-          error instanceof BadRequestException) {
+      this.logger.error(`Failed to respond to join request for team ${teamId}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to respond to join request');
@@ -389,9 +448,8 @@ export class TeamsService {
         throw new NotFoundException('Team not found');
       }
 
-      // Check if remover is owner or admin, or if they're removing themselves
       const removerMembership = team.members.find(member => 
-        (member.user as Types.ObjectId).toString() === removerId
+        this.getUserId(member.user) === removerId
       );
       
       if (!removerMembership) {
@@ -405,31 +463,31 @@ export class TeamsService {
         throw new ForbiddenException('Only team owners or admins can remove other members');
       }
 
-      // Prevent owner from removing themselves if they're the only owner
       if (isSelfRemoval && removerMembership.role === TeamRole.OWNER) {
         const otherOwners = team.members.filter(member => 
           member.role === TeamRole.OWNER && 
-          (member.user as Types.ObjectId).toString() !== memberId
+          this.getUserId(member.user) !== memberId
         );
         if (otherOwners.length === 0) {
           throw new BadRequestException('Team must have at least one owner. Transfer ownership first.');
         }
       }
 
-      // Remove member
       const memberIndex = team.members.findIndex(member => 
-        (member.user as Types.ObjectId).toString() === memberId
+        this.getUserId(member.user) === memberId
       );
       if (memberIndex === -1) {
         throw new NotFoundException('Member not found in team');
       }
 
       team.members.splice(memberIndex, 1);
-      return await team.save();
+      const updatedTeam = await team.save();
+      
+      this.logger.log(`Member removed from team ${teamId}: ${memberId} by user: ${removerId}`);
+      return updatedTeam;
     } catch (error) {
-      if (error instanceof NotFoundException || 
-          error instanceof ForbiddenException || 
-          error instanceof BadRequestException) {
+      this.logger.error(`Failed to remove member from team ${teamId}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to remove member');
@@ -453,6 +511,7 @@ export class TeamsService {
 
       return teams as Team[];
     } catch (error) {
+      this.logger.error(`Failed to fetch user teams for ${userId}: ${error.message}`);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -471,15 +530,19 @@ export class TeamsService {
       const query: any = { status: TeamStatus.ACTIVE };
 
       if (skills && skills.length > 0) {
-        query.requiredSkills = { $in: skills };
+        const validSkills = skills.filter(skill => skill && skill.trim().length > 0);
+        if (validSkills.length > 0) {
+          query.requiredSkills = { $in: validSkills };
+        }
       }
 
-      if (search) {
+      if (search && search.trim()) {
+        const searchTerm = search.trim();
         query.$or = [
-          { name: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { projectIdea: { $regex: search, $options: 'i' } },
-          { tags: { $in: [new RegExp(search, 'i')] } },
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { description: { $regex: searchTerm, $options: 'i' } },
+          { projectIdea: { $regex: searchTerm, $options: 'i' } },
+          { tags: { $in: [new RegExp(searchTerm, 'i')] } },
         ];
       }
 
@@ -503,7 +566,38 @@ export class TeamsService {
         totalPages 
       };
     } catch (error) {
+      this.logger.error(`Failed to search teams: ${error.message}`);
       throw new InternalServerErrorException('Failed to search teams');
     }
   }
+  async verifyTeamMembership(teamId: string, userId: string): Promise<boolean> {
+  const team = await this.getTeamById(teamId);
+  const isMember = team.members.some(member => member.user.toString() === userId);
+
+  if (!isMember) {
+    throw new ForbiddenException('You are not a member of this team');
+  }
+
+  return true;
+}
+  async getTeamById(teamId: string): Promise<TeamDocument> {
+    const team = await this.teamModel.findById(teamId);
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    return team;
+  }
+
+  async verifyTeamAdmin(teamId: string, userId: string): Promise<boolean> {
+  const team = await this.getTeamById(teamId);
+  const isAdmin = team.members.some(member => 
+    member.user.toString() === userId && ['owner', 'admin'].includes(member.role)
+  );
+
+  if (!isAdmin) {
+    throw new ForbiddenException('You do not have admin permissions for this team');
+  }
+
+  return true;
+}
 }

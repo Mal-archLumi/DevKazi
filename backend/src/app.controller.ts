@@ -4,6 +4,9 @@ import { Connection } from 'mongoose';
 
 @Controller()
 export class AppController {
+  getHello(): any {
+    throw new Error('Method not implemented.');
+  }
   constructor(@InjectConnection() private readonly connection: Connection) {}
 
   @Get('health')

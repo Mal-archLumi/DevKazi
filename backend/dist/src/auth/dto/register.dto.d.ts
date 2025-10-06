@@ -3,4 +3,14 @@ export declare class RegisterDto {
     name: string;
     password: string;
     roles?: string[];
+    skills?: string[];
+    bio?: string;
+    education?: string;
+    github?: string;
+    linkedin?: string;
+    company?: string;
+    position?: string;
+    experienceYears?: number;
+    isProfilePublic?: boolean;
+    isActive?: boolean;
 }

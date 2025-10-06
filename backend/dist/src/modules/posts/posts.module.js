@@ -9,10 +9,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostsModule = void 0;
 const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
-const posts_service_1 = require("./posts.service");
 const posts_controller_1 = require("./posts.controller");
+const posts_service_1 = require("./posts.service");
 const post_schema_1 = require("./schemas/post.schema");
 const teams_module_1 = require("../teams/teams.module");
+const post_ownership_guard_1 = require("./guards/post-ownership.guard");
 let PostsModule = class PostsModule {
 };
 exports.PostsModule = PostsModule;
@@ -20,10 +21,10 @@ exports.PostsModule = PostsModule = __decorate([
     (0, common_1.Module)({
         imports: [
             mongoose_1.MongooseModule.forFeature([{ name: post_schema_1.Post.name, schema: post_schema_1.PostSchema }]),
-            teams_module_1.TeamsModule,
+            (0, common_1.forwardRef)(() => teams_module_1.TeamsModule),
         ],
-        providers: [posts_service_1.PostsService],
         controllers: [posts_controller_1.PostsController],
+        providers: [posts_service_1.PostsService, post_ownership_guard_1.PostOwnershipGuard],
         exports: [posts_service_1.PostsService],
     })
 ], PostsModule);

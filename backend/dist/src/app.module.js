@@ -10,6 +10,7 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const throttler_1 = require("@nestjs/throttler");
+const core_1 = require("@nestjs/core");
 const mongoose_1 = require("@nestjs/mongoose");
 const auth_module_1 = require("./auth/auth.module");
 const users_module_1 = require("./modules/users/users.module");
@@ -19,6 +20,7 @@ const applications_module_1 = require("./modules/applications/applications.modul
 const chat_module_1 = require("./modules/chat/chat.module");
 const files_module_1 = require("./modules/files/files.module");
 const app_controller_1 = require("./app.controller");
+const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -43,6 +45,13 @@ exports.AppModule = AppModule = __decorate([
             files_module_1.FilesModule,
         ],
         controllers: [app_controller_1.AppController],
+        providers: [
+            app_service_1.AppService,
+            {
+                provide: core_1.APP_GUARD,
+                useClass: throttler_1.ThrottlerGuard,
+            },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

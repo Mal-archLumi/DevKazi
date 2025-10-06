@@ -16,8 +16,8 @@ const jwt_strategy_1 = require("./strategies/jwt.strategy");
 const mongoose_1 = require("@nestjs/mongoose");
 const user_schema_1 = require("../modules/users/schemas/user.schema");
 const config_1 = require("@nestjs/config");
-const jwt_auth_guard_1 = require("./guards/jwt-auth.guard");
-const roles_guard_1 = require("./guards/roles.guard");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const roles_guard_1 = require("../common/guards/roles.guard");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;

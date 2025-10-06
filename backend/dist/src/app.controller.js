@@ -18,6 +18,9 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 let AppController = class AppController {
     connection;
+    getHello() {
+        throw new Error('Method not implemented.');
+    }
     constructor(connection) {
         this.connection = connection;
     }

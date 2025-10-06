@@ -12,46 +12,95 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApplicationSchema = exports.Application = void 0;
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
-let Application = class Application extends mongoose_2.Document {
-    applicant;
+const swagger_1 = require("@nestjs/swagger");
+let Application = class Application {
+    _id;
     post;
+    applicant;
     team;
-    role;
-    message;
+    coverLetter;
+    resume;
+    skills;
+    experience;
     status;
-    appliedAs;
+    appliedAt;
+    reviewedAt;
+    reviewedBy;
+    notes;
 };
 exports.Application = Application;
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', required: true }),
+    (0, swagger_1.ApiProperty)({ description: 'Application ID' }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
-], Application.prototype, "applicant", void 0);
+], Application.prototype, "_id", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Post', required: true }),
+    (0, swagger_1.ApiProperty)({ description: 'Post being applied to' }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Post', required: true, index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Application.prototype, "post", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Team' }),
+    (0, swagger_1.ApiProperty)({ description: 'Applicant user' }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', required: true, index: true }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Application.prototype, "applicant", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Team receiving the application' }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Team', required: true, index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Application.prototype, "team", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, swagger_1.ApiProperty)({ description: 'Cover letter' }),
+    (0, mongoose_1.Prop)({ required: true, trim: true }),
     __metadata("design:type", String)
-], Application.prototype, "role", void 0);
+], Application.prototype, "coverLetter", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Resume URL', required: false }),
     (0, mongoose_1.Prop)(),
     __metadata("design:type", String)
-], Application.prototype, "message", void 0);
+], Application.prototype, "resume", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 'pending' }),
+    (0, swagger_1.ApiProperty)({ description: 'Applicant skills' }),
+    (0, mongoose_1.Prop)({ type: [String], default: [] }),
+    __metadata("design:type", Array)
+], Application.prototype, "skills", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Applicant experience' }),
+    (0, mongoose_1.Prop)({ trim: true }),
+    __metadata("design:type", String)
+], Application.prototype, "experience", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Application status' }),
+    (0, mongoose_1.Prop)({
+        enum: ['pending', 'accepted', 'rejected', 'withdrawn'],
+        default: 'pending'
+    }),
     __metadata("design:type", String)
 ], Application.prototype, "status", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({ description: 'When application was submitted' }),
+    (0, mongoose_1.Prop)({ default: Date.now }),
+    __metadata("design:type", Date)
+], Application.prototype, "appliedAt", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'When application was reviewed', required: false }),
     (0, mongoose_1.Prop)(),
+    __metadata("design:type", Date)
+], Application.prototype, "reviewedAt", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Who reviewed the application', required: false }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User' }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Application.prototype, "reviewedBy", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Internal notes', required: false }),
+    (0, mongoose_1.Prop)({ trim: true }),
     __metadata("design:type", String)
-], Application.prototype, "appliedAs", void 0);
+], Application.prototype, "notes", void 0);
 exports.Application = Application = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, mongoose_1.Schema)({ timestamps: true, versionKey: false })
 ], Application);
 exports.ApplicationSchema = mongoose_1.SchemaFactory.createForClass(Application);
+exports.ApplicationSchema.index({ post: 1, applicant: 1 }, { unique: true });
+exports.ApplicationSchema.index({ team: 1, status: 1 });
+exports.ApplicationSchema.index({ applicant: 1, status: 1 });
 //# sourceMappingURL=application.schema.js.map

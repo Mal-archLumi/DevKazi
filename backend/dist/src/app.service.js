@@ -9,8 +9,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppService = void 0;
 const common_1 = require("@nestjs/common");
 let AppService = class AppService {
-    getHello() {
-        return 'Hello World!';
+    getWelcome() {
+        return {
+            message: 'Welcome to DevKazi API',
+            version: '1.0.0',
+            description: 'Minimal team collaboration platform',
+            timestamp: new Date().toISOString()
+        };
     }
 };
 exports.AppService = AppService;

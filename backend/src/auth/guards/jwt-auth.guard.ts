@@ -2,15 +2,12 @@ import {
   Injectable,
   ExecutionContext,
   UnauthorizedException,
-  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-import { Role } from '../enums/role.enum';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -51,26 +48,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw new UnauthorizedException('Authentication required');
     }
 
-    // Check role-based access control if roles are defined
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (requiredRoles && requiredRoles.length > 0) {
-      const hasRole = requiredRoles.some(role => user.roles?.includes(role));
-      if (!hasRole) {
-        this.logger.warn(`User ${user.userId} attempted to access protected route without required roles: ${requiredRoles.join(', ')}`);
-        throw new ForbiddenException('Insufficient permissions');
-      }
-    }
-
-    // Add additional user context to request for logging and auditing
+    // Add user context to request for logging
     const request = context.switchToHttp().getRequest();
     request.userContext = {
       userId: user.userId,
       email: user.email,
-      roles: user.roles,
       ip: request.ip,
       userAgent: request.get('user-agent'),
       timestamp: new Date().toISOString(),

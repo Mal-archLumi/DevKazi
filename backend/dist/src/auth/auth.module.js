@@ -16,8 +16,7 @@ const jwt_strategy_1 = require("./strategies/jwt.strategy");
 const mongoose_1 = require("@nestjs/mongoose");
 const user_schema_1 = require("../modules/users/schemas/user.schema");
 const config_1 = require("@nestjs/config");
-const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
-const roles_guard_1 = require("../common/guards/roles.guard");
+const jwt_auth_guard_1 = require("./guards/jwt-auth.guard");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -28,25 +27,27 @@ exports.AuthModule = AuthModule = __decorate([
             passport_1.PassportModule.register({ defaultStrategy: 'jwt' }),
             jwt_1.JwtModule.registerAsync({
                 imports: [config_1.ConfigModule],
-                useFactory: async (configService) => ({
-                    secret: configService.get('JWT_SECRET') || 'fallback-secret',
-                    signOptions: { expiresIn: '15m' },
-                }),
+                useFactory: async (configService) => {
+                    const secret = configService.getOrThrow('JWT_SECRET');
+                    return {
+                        secret: secret,
+                        signOptions: { expiresIn: '15m' },
+                    };
+                },
                 inject: [config_1.ConfigService],
             }),
+            config_1.ConfigModule,
         ],
         controllers: [auth_controller_1.AuthController],
         providers: [
             auth_service_1.AuthService,
             jwt_strategy_1.JwtStrategy,
             jwt_auth_guard_1.JwtAuthGuard,
-            roles_guard_1.RolesGuard
         ],
         exports: [
             auth_service_1.AuthService,
             jwt_strategy_1.JwtStrategy,
             jwt_auth_guard_1.JwtAuthGuard,
-            roles_guard_1.RolesGuard
         ],
     })
 ], AuthModule);

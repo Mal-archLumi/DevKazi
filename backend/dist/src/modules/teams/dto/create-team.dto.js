@@ -11,80 +11,32 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateTeamDto = void 0;
 const class_validator_1 = require("class-validator");
+const swagger_1 = require("@nestjs/swagger");
 class CreateTeamDto {
     name;
     description;
-    projectIdea;
-    requiredSkills;
-    preferredSkills;
-    maxMembers;
-    isPublic;
-    allowJoinRequests;
-    requireApproval;
-    tags;
-    githubRepo;
-    projectDemoUrl;
+    skills;
 }
 exports.CreateTeamDto = CreateTeamDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'Awesome Project Team', description: 'Team name' }),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(2, { message: 'Team name must be at least 2 characters' }),
+    (0, class_validator_1.MaxLength)(50, { message: 'Team name cannot exceed 50 characters' }),
     __metadata("design:type", String)
 ], CreateTeamDto.prototype, "name", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: 'We are building a cool app', description: 'Team description' }),
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500, { message: 'Description cannot exceed 500 characters' }),
     __metadata("design:type", String)
 ], CreateTeamDto.prototype, "description", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: ['javascript', 'react'], description: 'Team skills' }),
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], CreateTeamDto.prototype, "projectIdea", void 0);
-__decorate([
     (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
-], CreateTeamDto.prototype, "requiredSkills", void 0);
-__decorate([
-    (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Array)
-], CreateTeamDto.prototype, "preferredSkills", void 0);
-__decorate([
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.Min)(2),
-    (0, class_validator_1.Max)(10),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Number)
-], CreateTeamDto.prototype, "maxMembers", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Boolean)
-], CreateTeamDto.prototype, "isPublic", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Boolean)
-], CreateTeamDto.prototype, "allowJoinRequests", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Boolean)
-], CreateTeamDto.prototype, "requireApproval", void 0);
-__decorate([
-    (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Array)
-], CreateTeamDto.prototype, "tags", void 0);
-__decorate([
-    (0, class_validator_1.IsUrl)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], CreateTeamDto.prototype, "githubRepo", void 0);
-__decorate([
-    (0, class_validator_1.IsUrl)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], CreateTeamDto.prototype, "projectDemoUrl", void 0);
+], CreateTeamDto.prototype, "skills", void 0);
 //# sourceMappingURL=create-team.dto.js.map

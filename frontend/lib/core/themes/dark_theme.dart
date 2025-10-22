@@ -3,72 +3,72 @@ import 'color_palette.dart';
 import 'text_styles.dart';
 
 class DarkTheme {
-  // Dark Theme - Modern, sleek dark theme
+  // Dark Theme - Minimalist, Google-inspired dark theme for Devkazi
   static ThemeData get dark {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.dark(
-        // Primary colors
-        primary: ColorPalette.primary400,
-        onPrimary: ColorPalette.neutral900,
-        primaryContainer: ColorPalette.primary800,
-        onPrimaryContainer: ColorPalette.primary100,
+        // Primary colors (using blue #1976D2 for consistency with light theme)
+        primary: ColorPalette.secondary700, // #1976D2
+        onPrimary: Colors.white,
+        primaryContainer: ColorPalette.secondary800, // Darker blue
+        onPrimaryContainer: ColorPalette.neutral100,
 
         // Secondary colors
-        secondary: ColorPalette.secondary400,
-        onSecondary: ColorPalette.neutral900,
-        secondaryContainer: ColorPalette.secondary800,
-        onSecondaryContainer: ColorPalette.secondary100,
+        secondary: ColorPalette.secondary500, // #2196F3
+        onSecondary: Colors.white,
+        secondaryContainer: ColorPalette.secondary900,
+        onSecondaryContainer: ColorPalette.neutral200,
 
         // Surface colors
-        surface: ColorPalette.neutral900,
-        onSurface: ColorPalette.neutral50,
-        surfaceContainerHighest: ColorPalette.neutral800,
-        onSurfaceVariant: ColorPalette.neutral200,
+        surface: const Color(0xFF121212), // Standard dark background
+        onSurface: ColorPalette.neutral100, // Near-white text
+        surfaceContainerHighest: ColorPalette.neutral900,
+        onSurfaceVariant: ColorPalette.neutral400,
 
         // Error colors
-        error: ColorPalette.error500,
+        error: ColorPalette.error400,
         onError: Colors.white,
-        errorContainer: ColorPalette.error800,
-        onErrorContainer: ColorPalette.error100,
+        errorContainer: ColorPalette.error700,
+        onErrorContainer: ColorPalette.neutral200,
 
         // Outline colors
-        outline: ColorPalette.neutral700,
-        outlineVariant: ColorPalette.neutral600,
+        outline: ColorPalette.neutral600,
+        outlineVariant: ColorPalette.neutral700,
 
         // Shadow
-        shadow: Colors.black.withOpacity(0.4),
+        shadow: Colors.black.withValues(alpha: 0.2),
       ),
 
-      // Text Theme
+      // Text Theme (same as light theme for consistency)
       textTheme: TextTheme(
         displayLarge: TextStyles.displayLarge.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         displayMedium: TextStyles.displayMedium.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         displaySmall: TextStyles.displaySmall.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         headlineLarge: TextStyles.headlineLarge.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         headlineMedium: TextStyles.headlineMedium.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         headlineSmall: TextStyles.headlineSmall.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         titleLarge: TextStyles.titleLarge.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         titleMedium: TextStyles.titleMedium.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         titleSmall: TextStyles.titleSmall.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         bodyLarge: TextStyles.bodyLarge.copyWith(
           color: ColorPalette.neutral200,
@@ -80,21 +80,21 @@ class DarkTheme {
           color: ColorPalette.neutral300,
         ),
         labelLarge: TextStyles.labelLarge.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         labelMedium: TextStyles.labelMedium.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral100,
         ),
         labelSmall: TextStyles.labelSmall.copyWith(
-          color: ColorPalette.neutral50,
+          color: ColorPalette.neutral300,
         ),
       ),
 
       // Elevated Button Theme
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: ColorPalette.primary400,
-          foregroundColor: ColorPalette.neutral900,
+          backgroundColor: ColorPalette.secondary700, // #1976D2
+          foregroundColor: Colors.white,
           elevation: 0,
           shadowColor: Colors.transparent,
           textStyle: TextStyles.labelLarge,
@@ -108,10 +108,10 @@ class DarkTheme {
       // Outlined Button Theme
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: ColorPalette.primary400,
+          foregroundColor: ColorPalette.secondary700,
           textStyle: TextStyles.labelLarge,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          side: const BorderSide(color: ColorPalette.primary400),
+          side: const BorderSide(color: ColorPalette.secondary700),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -121,7 +121,7 @@ class DarkTheme {
       // Text Button Theme
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: ColorPalette.primary400,
+          foregroundColor: ColorPalette.secondary700,
           textStyle: TextStyles.labelLarge,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         ),
@@ -130,33 +130,33 @@ class DarkTheme {
       // Input Decoration Theme
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: ColorPalette.neutral800,
+        fillColor: ColorPalette.neutral900,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: ColorPalette.neutral700),
+          borderSide: const BorderSide(color: ColorPalette.neutral600),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: ColorPalette.neutral700),
+          borderSide: const BorderSide(color: ColorPalette.neutral600),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: ColorPalette.primary400,
+            color: ColorPalette.secondary700,
             width: 2,
           ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: ColorPalette.error500),
+          borderSide: const BorderSide(color: ColorPalette.error400),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: ColorPalette.error500, width: 2),
+          borderSide: const BorderSide(color: ColorPalette.error400, width: 2),
         ),
         labelStyle: TextStyles.bodyMedium.copyWith(
           color: ColorPalette.neutral400,
@@ -164,14 +164,14 @@ class DarkTheme {
         hintStyle: TextStyles.bodyMedium.copyWith(
           color: ColorPalette.neutral500,
         ),
-        errorStyle: TextStyles.bodySmall.copyWith(color: ColorPalette.error500),
+        errorStyle: TextStyles.bodySmall.copyWith(color: ColorPalette.error400),
       ),
 
-      // Card Theme - Using CardThemeData (modern syntax)
+      // Card Theme
       cardTheme: const CardThemeData(
-        color: ColorPalette.neutral800,
+        color: Color(0xFF1E1E1E), // Darker surface for cards
         elevation: 2,
-        shadowColor: Colors.black26,
+        shadowColor: Colors.black45,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
@@ -180,26 +180,27 @@ class DarkTheme {
 
       // App Bar Theme
       appBarTheme: AppBarTheme(
-        backgroundColor: ColorPalette.neutral900,
-        foregroundColor: ColorPalette.neutral50,
+        backgroundColor: const Color(0xFF121212),
+        foregroundColor: ColorPalette.neutral100,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyles.titleLarge.copyWith(
           fontWeight: FontWeight.w600,
+          color: ColorPalette.neutral100,
         ),
         surfaceTintColor: Colors.transparent,
       ),
 
       // Bottom Navigation Bar Theme
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: ColorPalette.neutral900,
-        selectedItemColor: ColorPalette.primary400,
+        backgroundColor: Color(0xFF121212),
+        selectedItemColor: ColorPalette.secondary700,
         unselectedItemColor: ColorPalette.neutral400,
       ),
 
-      // Dialog Theme - Using DialogThemeData (modern syntax)
+      // Dialog Theme
       dialogTheme: const DialogThemeData(
-        backgroundColor: ColorPalette.neutral800,
+        backgroundColor: Color(0xFF1E1E1E),
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(20)),

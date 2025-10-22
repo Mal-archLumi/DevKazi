@@ -11,14 +11,15 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RemoveSkillsDto = exports.AddSkillsDto = void 0;
 const class_validator_1 = require("class-validator");
+const swagger_1 = require("@nestjs/swagger");
 class AddSkillsDto {
     skills;
 }
 exports.AddSkillsDto = AddSkillsDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: ['JavaScript', 'TypeScript'], description: 'Skills to add' }),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayNotEmpty)(),
-    (0, class_validator_1.ArrayMinSize)(1),
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], AddSkillsDto.prototype, "skills", void 0);
@@ -27,9 +28,9 @@ class RemoveSkillsDto {
 }
 exports.RemoveSkillsDto = RemoveSkillsDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: ['Python'], description: 'Skills to remove' }),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayNotEmpty)(),
-    (0, class_validator_1.ArrayMinSize)(1),
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], RemoveSkillsDto.prototype, "skills", void 0);

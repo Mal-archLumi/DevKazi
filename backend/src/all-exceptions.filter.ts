@@ -19,13 +19,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ? exception.getResponse()
       : { message: 'Internal server error' };
 
-    // Log the error for debugging (avoid logging sensitive data in production)
+    // Log the error for debugging
     this.logger.error(
-      `Error occurred: ${JSON.stringify({
-        path: request.url,
-        status,
-        message,
-      })}`,
+      `Error: ${request.method} ${request.url} - Status: ${status}`,
       exception instanceof Error ? exception.stack : '',
     );
 

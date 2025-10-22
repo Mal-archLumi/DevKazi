@@ -2,10 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { UsersService } from '../src/modules/users/users.service';
 import { TeamsService } from '../src/modules/teams/teams.service';
-import { PostsService } from '../src/modules/posts/posts.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { User } from '../src/modules/users/schemas/user.schema';
-import { Post } from '../src/modules/posts/schemas/post.schema';
 import { Team } from '../src/modules/teams/schemas/team.schema';
 import * as bcrypt from 'bcryptjs';
 
@@ -17,7 +15,6 @@ async function bootstrap() {
   try {
     const userModel = app.get(getModelToken(User.name));
     const teamModel = app.get(getModelToken(Team.name));
-    const postModel = app.get(getModelToken(Post.name));
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -29,7 +26,6 @@ async function bootstrap() {
     // Get service instances
     const usersService = app.get(UsersService);
     const teamsService = app.get(TeamsService);
-    const postsService = app.get(PostsService);
     
     // Create sample users
     const hashedPassword = await bcrypt.hash('password123', 12);
@@ -86,26 +82,6 @@ async function bootstrap() {
     console.log('✅ Sample teams created:', teams.map(t => t.name));
 
 
-    // Create sample internship posts
-    const posts = await postModel.insertMany([
-      {
-        title: 'Full-Stack Development Internship',
-        description: 'Join our team to build a real-world application from scratch',
-        team: teams[0]._id,
-        type: 'internship',
-        roles: [
-          { role: 'Frontend Developer', slots: 2, skills: ['React', 'TypeScript'], filled: 1 },
-          { role: 'Backend Developer', slots: 1, skills: ['Node.js', 'Express'], filled: 0 }
-        ],
-        requiredSkills: ['JavaScript', 'Git', 'REST APIs'],
-        duration: '8 weeks',
-        deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        status: 'active',
-        projectName: 'Task Management App'
-      }
-      ]);
-
-    console.log('✅ Sample posts created:', posts.map(p => p.title));
 
 
     console.log('🎉 Database seeding completed successfully!');

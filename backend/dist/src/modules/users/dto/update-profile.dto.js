@@ -11,89 +11,44 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateProfileDto = void 0;
 const class_validator_1 = require("class-validator");
-const role_enum_1 = require("../../../auth/enums/role.enum");
+const swagger_1 = require("@nestjs/swagger");
 class UpdateProfileDto {
     name;
-    email;
+    skills;
     bio;
     education;
-    skills;
-    company;
-    position;
-    github;
-    linkedin;
-    portfolio;
-    experienceYears;
     isProfilePublic;
-    role;
 }
 exports.UpdateProfileDto = UpdateProfileDto;
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Jane Doe', description: 'User full name' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UpdateProfileDto.prototype, "name", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEmail)(),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "email", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "bio", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "education", void 0);
-__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: ['JavaScript', 'React'], description: 'User skills' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], UpdateProfileDto.prototype, "skills", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'I love coding!', description: 'User bio' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], UpdateProfileDto.prototype, "company", void 0);
+], UpdateProfileDto.prototype, "bio", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Computer Science', description: 'User education' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], UpdateProfileDto.prototype, "position", void 0);
+], UpdateProfileDto.prototype, "education", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUrl)(),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "github", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUrl)(),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "linkedin", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUrl)(),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "portfolio", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.Min)(0),
-    (0, class_validator_1.Max)(50),
-    __metadata("design:type", Number)
-], UpdateProfileDto.prototype, "experienceYears", void 0);
-__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: true, description: 'Whether profile is public' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateProfileDto.prototype, "isProfilePublic", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(role_enum_1.Role),
-    __metadata("design:type", String)
-], UpdateProfileDto.prototype, "role", void 0);
 //# sourceMappingURL=update-profile.dto.js.map

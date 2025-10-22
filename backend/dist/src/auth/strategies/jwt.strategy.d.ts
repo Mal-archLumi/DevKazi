@@ -1,10 +1,7 @@
-import { Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import { User } from '../../modules/users/schemas/user.schema';
-declare const JwtStrategy_base: new (...args: [opt: import("passport-jwt").StrategyOptionsWithRequest] | [opt: import("passport-jwt").StrategyOptionsWithoutRequest]) => Strategy & {
-    validate(...args: any[]): unknown;
-};
+declare const JwtStrategy_base: new (...args: any) => any;
 export declare class JwtStrategy extends JwtStrategy_base {
     private configService;
     private userModel;
@@ -14,7 +11,6 @@ export declare class JwtStrategy extends JwtStrategy_base {
         userId: string;
         email: string;
         name: string;
-        roles: string[];
         isVerified: boolean;
     }>;
 }

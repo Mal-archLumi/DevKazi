@@ -1,61 +1,30 @@
-import { IsEmail, IsOptional, IsString, IsArray, IsEnum, IsNumber, Min, Max, IsBoolean, IsUrl } from 'class-validator';
-import { Role } from '../../../auth/enums/role.enum';
+import { IsOptional, IsString, IsArray, IsBoolean } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
+  @ApiPropertyOptional({ example: 'Jane Doe', description: 'User full name' })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  bio?: string;
-
-  @IsOptional()
-  @IsString()
-  education?: string;
-
+  @ApiPropertyOptional({ example: ['JavaScript', 'React'], description: 'User skills' })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   skills?: string[];
 
-  // New Phase 2 fields
+  @ApiPropertyOptional({ example: 'I love coding!', description: 'User bio' })
   @IsOptional()
   @IsString()
-  company?: string;
+  bio?: string;
 
+  @ApiPropertyOptional({ example: 'Computer Science', description: 'User education' })
   @IsOptional()
   @IsString()
-  position?: string;
+  education?: string;
 
-  @IsOptional()
-  @IsUrl()
-  github?: string;
-
-  @IsOptional()
-  @IsUrl()
-  linkedin?: string;
-
-  @IsOptional()
-  @IsUrl()
-  portfolio?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(50)
-  experienceYears?: number;
-
+  @ApiPropertyOptional({ example: true, description: 'Whether profile is public' })
   @IsOptional()
   @IsBoolean()
   isProfilePublic?: boolean;
-
-  // Role update should be restricted to admins only
-  @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
 }

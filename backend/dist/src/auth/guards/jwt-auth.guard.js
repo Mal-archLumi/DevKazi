@@ -15,7 +15,6 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const core_1 = require("@nestjs/core");
 const public_decorator_1 = require("../decorators/public.decorator");
-const roles_decorator_1 = require("../decorators/roles.decorator");
 let JwtAuthGuard = JwtAuthGuard_1 = class JwtAuthGuard extends (0, passport_1.AuthGuard)('jwt') {
     reflector;
     logger = new common_1.Logger(JwtAuthGuard_1.name);
@@ -48,22 +47,10 @@ let JwtAuthGuard = JwtAuthGuard_1 = class JwtAuthGuard extends (0, passport_1.Au
             }
             throw new common_1.UnauthorizedException('Authentication required');
         }
-        const requiredRoles = this.reflector.getAllAndOverride(roles_decorator_1.ROLES_KEY, [
-            context.getHandler(),
-            context.getClass(),
-        ]);
-        if (requiredRoles && requiredRoles.length > 0) {
-            const hasRole = requiredRoles.some(role => user.roles?.includes(role));
-            if (!hasRole) {
-                this.logger.warn(`User ${user.userId} attempted to access protected route without required roles: ${requiredRoles.join(', ')}`);
-                throw new common_1.ForbiddenException('Insufficient permissions');
-            }
-        }
         const request = context.switchToHttp().getRequest();
         request.userContext = {
             userId: user.userId,
             email: user.email,
-            roles: user.roles,
             ip: request.ip,
             userAgent: request.get('user-agent'),
             timestamp: new Date().toISOString(),

@@ -13,6 +13,7 @@ const chat_gateway_1 = require("./chat.gateway");
 const chat_service_1 = require("./chat.service");
 const message_schema_1 = require("./schemas/message.schema");
 const teams_module_1 = require("../teams/teams.module");
+const auth_module_1 = require("../../auth/auth.module");
 let ChatModule = class ChatModule {
 };
 exports.ChatModule = ChatModule;
@@ -21,8 +22,10 @@ exports.ChatModule = ChatModule = __decorate([
         imports: [
             mongoose_1.MongooseModule.forFeature([{ name: message_schema_1.Message.name, schema: message_schema_1.MessageSchema }]),
             teams_module_1.TeamsModule,
+            auth_module_1.AuthModule,
         ],
         providers: [chat_gateway_1.ChatGateway, chat_service_1.ChatService],
+        exports: [chat_service_1.ChatService],
     })
 ], ChatModule);
 //# sourceMappingURL=chat.module.js.map

@@ -2,7 +2,6 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto, PublicUserResponseDto } from './dto/user-response.dto';
-import { SearchUsersDto } from './dto/search-users.dto';
 export declare class UsersService {
     private userModel;
     constructor(userModel: Model<UserDocument>);
@@ -16,15 +15,6 @@ export declare class UsersService {
     deleteAccount(userId: string): Promise<void>;
     addSkills(userId: string, skills: string[]): Promise<UserResponseDto>;
     removeSkills(userId: string, skills: string[]): Promise<UserResponseDto>;
-    searchUsers(searchDto: SearchUsersDto): Promise<{
-        users: PublicUserResponseDto[];
-        total: number;
-    }>;
-    getMentors(): Promise<PublicUserResponseDto[]>;
-    getStudents(): Promise<PublicUserResponseDto[]>;
-    requestVerification(userId: string): Promise<{
-        message: string;
-    }>;
     private validateSkills;
     private mapToUserResponseDto;
     private mapToPublicUserResponseDto;

@@ -9,31 +9,19 @@ export declare class TeamsService {
     private userModel;
     private readonly logger;
     constructor(teamModel: Model<TeamDocument>, userModel: Model<UserDocument>);
+    private generateInviteCode;
     private getUserId;
-    private isUserOwnerOrAdmin;
     private isUserOwner;
+    private isUserMember;
     create(createTeamDto: CreateTeamDto, userId: string): Promise<Team>;
-    findAll(page?: number, limit?: number, search?: string): Promise<{
-        teams: Team[];
-        total: number;
-        page: number;
-        totalPages: number;
-    }>;
     findOne(id: string): Promise<Team>;
     update(id: string, updateTeamDto: UpdateTeamDto, userId: string): Promise<Team>;
     remove(id: string, userId: string): Promise<void>;
     inviteMember(teamId: string, inviteMemberDto: InviteMemberDto, inviterId: string): Promise<Team>;
-    joinTeam(teamId: string, userId: string, message?: string): Promise<Team>;
-    respondToJoinRequest(teamId: string, requestUserId: string, approverId: string, accept: boolean): Promise<Team>;
+    joinTeam(inviteCode: string, userId: string): Promise<Team>;
     removeMember(teamId: string, memberId: string, removerId: string): Promise<Team>;
     getUserTeams(userId: string): Promise<Team[]>;
-    searchTeams(skills?: string[], search?: string, page?: number, limit?: number): Promise<{
-        teams: Team[];
-        total: number;
-        page: number;
-        totalPages: number;
-    }>;
+    regenerateInviteCode(teamId: string, userId: string): Promise<Team>;
     verifyTeamMembership(teamId: string, userId: string): Promise<boolean>;
     getTeamById(teamId: string): Promise<TeamDocument>;
-    verifyTeamAdmin(teamId: string, userId: string): Promise<boolean>;
 }

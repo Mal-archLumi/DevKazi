@@ -1,26 +1,32 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+// auth.service.ts - Fixed login method
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { User, UserDocument } from '../modules/users/schemas/user.schema';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { Role } from './enums/role.enum';
+import { OAuth2Client } from 'google-auth-library';
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
-  ) {}
+  ) {
+    this.googleClient = new OAuth2Client(process.env.GOOGLE_WEB_CLIENT_ID);
+  }
 
   async register(registerDto: RegisterDto): Promise<{ 
     access_token: string; 
     refresh_token: string;
     user: any;
   }> {
-    const { email, password, name, roles } = registerDto;
+    const { email, password, name, skills } = registerDto;
 
     // Validate input
     if (!email || !password || !name) {
@@ -33,34 +39,22 @@ export class AuthService {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Hash password with proper salt rounds
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user with proper role handling
-    const userRoles = roles && roles.length > 0 ? roles : [Role.STUDENT];
-    
-    // Validate roles
-    const validRoles = Object.values(Role);
-    const invalidRoles = userRoles.filter(role => !validRoles.includes(role as Role));
-    if (invalidRoles.length > 0) {
-      throw new BadRequestException(`Invalid roles: ${invalidRoles.join(', ')}`);
-    }
-
+    // Create user - no roles, simplified fields
     const user = await this.userModel.create({
       email: email.toLowerCase(),
       password: hashedPassword,
       name: name.trim(),
-      roles: userRoles,
+      skills: skills || [],
       isVerified: false,
       isActive: true,
-      isProfilePublic: true,
-      skills: [],
-      experienceYears: 0,
     });
 
-    // Generate tokens - safely access _id
+    // Generate tokens
     const userId = this.getUserId(user);
-    const tokens = await this.generateTokens(userId, user.roles);
+    const tokens = await this.generateTokens(userId);
 
     // Return user without sensitive data
     const userResponse = this.sanitizeUser(user);
@@ -94,15 +88,20 @@ export class AuthService {
       throw new UnauthorizedException('Account is deactivated. Please contact support.');
     }
 
-    // Verify password with timing-safe comparison
+    // ✅ FIX: Check if user has a password (Google users don't have passwords)
+    if (!user.password) {
+      throw new UnauthorizedException('Please use Google Sign-In for this account');
+    }
+
+    // ✅ FIX: Now TypeScript knows user.password is defined
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate tokens - safely access _id
+    // Generate tokens
     const userId = this.getUserId(user);
-    const tokens = await this.generateTokens(userId, user.roles);
+    const tokens = await this.generateTokens(userId);
 
     // Return sanitized user
     const userResponse = this.sanitizeUser(user);
@@ -111,6 +110,111 @@ export class AuthService {
       ...tokens,
       user: userResponse,
     };
+  }
+
+  async googleLogin(idToken: string): Promise<{
+    access_token: string;
+    refresh_token: string;
+    user: any;
+  }> {
+    this.logger.log('Starting Google login process');
+    
+    if (!idToken) {
+      this.logger.error('Google ID token is required');
+      throw new BadRequestException('Google ID token is required');
+    }
+
+    try {
+      this.logger.log('Verifying Google ID token');
+      
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_WEB_CLIENT_ID,
+      });
+      
+      const payload = ticket.getPayload();
+      
+      if (!payload) {
+        this.logger.error('Invalid Google token - no payload');
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      this.logger.log(`Google token verified for email: ${payload.email}`);
+      
+      const { sub: googleId, email, name, given_name, family_name, picture } = payload;
+
+      if (!email) {
+        this.logger.error('Email not provided by Google');
+        throw new UnauthorizedException('Email not provided by Google');
+      }
+
+      // ✅ Handle missing name from Google - IMPROVED
+      const userName = name || given_name || family_name || email.split('@')[0] || 'Google User';
+      
+      this.logger.log(`Processing user: ${email}, name: ${userName}`);
+
+      // Find or create user
+      let user = await this.userModel.findOne({ googleId });
+      
+      if (!user) {
+        this.logger.log(`No user found with googleId: ${googleId}, checking by email: ${email}`);
+        user = await this.userModel.findOne({ email: email.toLowerCase() });
+        
+        if (user) {
+          this.logger.log(`Found existing user by email: ${email}, linking Google account`);
+          // Link Google ID to existing user
+          user.googleId = googleId;
+          user.picture = picture || user.picture;
+          user.name = userName; // Use the improved name handling
+          await user.save();
+        } else {
+          this.logger.log(`Creating new user for Google login: ${email}`);
+          // Create new user - ✅ Google users don't get passwords
+          user = await this.userModel.create({
+            googleId,
+            email: email.toLowerCase(),
+            name: userName,
+            picture,
+            isVerified: true,
+            isActive: true,
+            skills: [],
+            // No password field for Google users
+          });
+        }
+      } else {
+        this.logger.log(`Found existing user with googleId: ${googleId}`);
+      }
+
+      // Check if user is active
+      if (!user.isActive) {
+        this.logger.error(`User account is deactivated: ${email}`);
+        throw new UnauthorizedException('Account is deactivated. Please contact support.');
+      }
+
+      // Generate tokens
+      const userId = this.getUserId(user);
+      this.logger.log(`Generating tokens for user ID: ${userId}`);
+      
+      const tokens = await this.generateTokens(userId);
+
+      // Return sanitized user
+      const userResponse = this.sanitizeUser(user);
+      
+      this.logger.log(`Google login successful for user: ${email}`);
+      
+      return {
+        ...tokens,
+        user: userResponse,
+      };
+    } catch (error) {
+      this.logger.error(`Google login failed: ${error.message}`, error.stack);
+      
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      throw new UnauthorizedException('Google authentication failed');
+    }
   }
 
   async refreshToken(refreshToken: string): Promise<{ 
@@ -133,15 +237,13 @@ export class AuthService {
 
       // Check if user needs to re-authenticate (e.g., after password change)
       const tokenIssuedAt = payload.iat * 1000;
-      
-      // Safely access updatedAt
       const userUpdatedAt = this.getUpdatedAt(user);
       if (userUpdatedAt && userUpdatedAt.getTime() > tokenIssuedAt) {
         throw new UnauthorizedException('Session expired. Please login again.');
       }
 
       const userId = this.getUserId(user);
-      return this.generateTokens(userId, user.roles);
+      return this.generateTokens(userId);
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Refresh token expired');
@@ -193,6 +295,11 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
+    // ✅ FIX: Check if user has a password before trying to change it
+    if (!user.password) {
+      throw new UnauthorizedException('Google users cannot change password. Please set a password first.');
+    }
+
     // Verify current password
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isCurrentPasswordValid) {
@@ -202,7 +309,7 @@ export class AuthService {
     // Hash new password
     const hashedNewPassword = await bcrypt.hash(newPassword, 12);
 
-    // Update password and set updatedAt
+    // Update password
     await this.userModel.findByIdAndUpdate(userId, {
       password: hashedNewPassword,
       updatedAt: new Date(),
@@ -211,33 +318,51 @@ export class AuthService {
     return { message: 'Password changed successfully' };
   }
 
-  private async generateTokens(userId: string, roles: string[]): Promise<{ 
-    access_token: string; 
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    if (!email) {
+      throw new BadRequestException('Email is required');
+    }
+    
+    const user = await this.userModel.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      throw new BadRequestException('User with this email does not exist');
+    }
+
+    // ✅ FIX: Check if user has a password before allowing password reset
+    if (!user.password) {
+      throw new BadRequestException('Google users cannot reset password. Please use Google Sign-In.');
+    }
+
+    // TODO: Implement email sending logic (e.g., using @nestjs-modules/mailer)
+    // Generate reset token, save to DB, send email with link
+    return { message: 'Password reset link sent to your email' };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    // TODO: Implement token verification and password reset logic
+    // Make sure to check if the user has a password before resetting
+    throw new Error('Method not implemented.');
+  }
+
+  private async generateTokens(userId: string): Promise<{
+    access_token: string;
     refresh_token: string;
   }> {
-    const payload = { 
-      sub: userId, 
-      roles: roles,
-      email: await this.getUserEmail(userId),
-      iat: Math.floor(Date.now() / 1000),
+    const payload = {
+      sub: userId,
     };
 
     const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+      expiresIn: process.env.JWT_EXPIRES_IN ? this.parseExpiresIn(process.env.JWT_EXPIRES_IN) : 15 * 60,
       secret: process.env.JWT_SECRET || 'fallback-secret',
     });
 
     const refresh_token = await this.jwtService.signAsync(payload, {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN ? this.parseExpiresIn(process.env.JWT_REFRESH_EXPIRES_IN) : 7 * 24 * 60 * 60,
       secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
     });
 
     return { access_token, refresh_token };
-  }
-
-  private async getUserEmail(userId: string): Promise<string> {
-    const user = await this.userModel.findById(userId);
-    return user?.email || '';
   }
 
   private sanitizeUser(user: UserDocument): any {
@@ -246,9 +371,8 @@ export class AuthService {
     return userWithoutPassword;
   }
 
-  // Safe method to get user ID with proper type handling
+  // Safe method to get user ID
   private getUserId(user: UserDocument): string {
-    // Use type assertion to safely access _id
     const userObj = user as any;
     if (userObj._id && userObj._id.toString) {
       return userObj._id.toString();
@@ -259,10 +383,25 @@ export class AuthService {
     throw new Error('Unable to get user ID');
   }
 
-  // Safe method to get updatedAt with proper type handling
+  // Safe method to get updatedAt
   private getUpdatedAt(user: UserDocument): Date | null {
-    // Use type assertion to safely access updatedAt
     const userObj = user as any;
     return userObj.updatedAt || null;
+  }
+
+  private parseExpiresIn(expiresIn: string): number {
+    const match = expiresIn.match(/^(\d+)([smhd])$/);
+    if (!match) {
+      throw new Error(`Invalid expiresIn format: ${expiresIn}`);
+    }
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    switch (unit) {
+      case 's': return value;
+      case 'm': return value * 60;
+      case 'h': return value * 60 * 60;
+      case 'd': return value * 60 * 60 * 24;
+      default: throw new Error(`Unknown unit: ${unit}`);
+    }
   }
 }

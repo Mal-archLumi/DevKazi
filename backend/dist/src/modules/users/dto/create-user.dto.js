@@ -11,50 +11,34 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateUserDto = void 0;
 const class_validator_1 = require("class-validator");
-const role_enum_1 = require("../../../auth/enums/role.enum");
+const swagger_1 = require("@nestjs/swagger");
 class CreateUserDto {
     email;
     name;
     password;
-    role;
-    bio;
-    education;
     skills;
 }
 exports.CreateUserDto = CreateUserDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'user@example.com', description: 'User email address' }),
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "email", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'John Doe', description: 'User full name' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(2),
     (0, class_validator_1.MaxLength)(50),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "name", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'Password123!', description: 'User password' }),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(8),
-    (0, class_validator_1.Matches)(/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#\$%\^&\*])/, {
-        message: 'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
-    }),
+    (0, class_validator_1.MinLength)(6),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "password", void 0);
 __decorate([
-    (0, class_validator_1.IsEnum)(role_enum_1.Role),
-    __metadata("design:type", String)
-], CreateUserDto.prototype, "role", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateUserDto.prototype, "bio", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateUserDto.prototype, "education", void 0);
-__decorate([
+    (0, swagger_1.ApiProperty)({ example: ['JavaScript', 'React'], description: 'User skills', required: false }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.IsString)({ each: true }),

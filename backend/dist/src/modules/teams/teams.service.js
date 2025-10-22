@@ -27,6 +27,9 @@ let TeamsService = TeamsService_1 = class TeamsService {
         this.teamModel = teamModel;
         this.userModel = userModel;
     }
+    generateInviteCode() {
+        return Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
     getUserId(userRef) {
         try {
             if (userRef instanceof mongoose_2.Types.ObjectId) {
@@ -45,19 +48,12 @@ let TeamsService = TeamsService_1 = class TeamsService {
             throw new common_1.BadRequestException('Invalid user reference');
         }
     }
-    isUserOwnerOrAdmin(team, userId) {
-        const member = team.members.find(m => {
-            const memberUserId = this.getUserId(m.user);
-            return memberUserId === userId;
-        });
-        return member ? [team_schema_1.TeamRole.OWNER, team_schema_1.TeamRole.ADMIN].includes(member.role) : false;
-    }
     isUserOwner(team, userId) {
-        const member = team.members.find(m => {
-            const memberUserId = this.getUserId(m.user);
-            return memberUserId === userId;
-        });
-        return member ? member.role === team_schema_1.TeamRole.OWNER : false;
+        const ownerId = this.getUserId(team.owner);
+        return ownerId === userId;
+    }
+    isUserMember(team, userId) {
+        return team.members.some(member => this.getUserId(member.user) === userId);
     }
     async create(createTeamDto, userId) {
         try {
@@ -65,19 +61,29 @@ let TeamsService = TeamsService_1 = class TeamsService {
             if (!user) {
                 throw new common_1.NotFoundException('User not found');
             }
+            let inviteCode;
+            let isUnique = false;
+            let attempts = 0;
+            while (!isUnique && attempts < 10) {
+                inviteCode = this.generateInviteCode();
+                const existingTeam = await this.teamModel.findOne({ inviteCode });
+                if (!existingTeam) {
+                    isUnique = true;
+                }
+                attempts++;
+            }
+            if (!isUnique) {
+                throw new common_1.InternalServerErrorException('Failed to generate unique invite code');
+            }
             const teamData = {
                 ...createTeamDto,
+                owner: new mongoose_2.Types.ObjectId(userId),
                 members: [{
                         user: new mongoose_2.Types.ObjectId(userId),
-                        role: team_schema_1.TeamRole.OWNER,
                         joinedAt: new Date(),
                     }],
-                settings: {
-                    isPublic: createTeamDto.isPublic ?? true,
-                    allowJoinRequests: createTeamDto.allowJoinRequests ?? true,
-                    requireApproval: createTeamDto.requireApproval ?? true,
-                },
-                status: team_schema_1.TeamStatus.ACTIVE,
+                inviteCode: inviteCode,
+                lastActivity: new Date(),
             };
             const team = new this.teamModel(teamData);
             const savedTeam = await team.save();
@@ -91,40 +97,6 @@ let TeamsService = TeamsService_1 = class TeamsService {
             throw new common_1.InternalServerErrorException('Failed to create team');
         }
     }
-    async findAll(page = 1, limit = 10, search) {
-        try {
-            const skip = (page - 1) * limit;
-            let query = this.teamModel
-                .find({ status: team_schema_1.TeamStatus.ACTIVE })
-                .populate('members.user', 'name email avatar skills')
-                .sort({ createdAt: -1 });
-            if (search && search.trim()) {
-                query = query.find({
-                    $or: [
-                        { name: { $regex: search.trim(), $options: 'i' } },
-                        { description: { $regex: search.trim(), $options: 'i' } },
-                        { projectIdea: { $regex: search.trim(), $options: 'i' } },
-                        { tags: { $in: [new RegExp(search.trim(), 'i')] } },
-                    ],
-                });
-            }
-            const [teams, total] = await Promise.all([
-                query.skip(skip).limit(limit).exec(),
-                this.teamModel.countDocuments(query.getFilter()),
-            ]);
-            const totalPages = Math.ceil(total / limit);
-            return {
-                teams: teams,
-                total,
-                page,
-                totalPages
-            };
-        }
-        catch (error) {
-            this.logger.error(`Failed to fetch teams: ${error.message}`);
-            throw new common_1.InternalServerErrorException('Failed to fetch teams');
-        }
-    }
     async findOne(id) {
         try {
             if (!mongoose_2.Types.ObjectId.isValid(id)) {
@@ -132,15 +104,11 @@ let TeamsService = TeamsService_1 = class TeamsService {
             }
             const team = await this.teamModel
                 .findById(id)
-                .populate('members.user', 'name email avatar skills education experience')
-                .populate('pendingInvites', 'name email')
-                .populate('joinRequests.user', 'name email avatar skills')
+                .populate('owner', 'name email')
+                .populate('members.user', 'name email')
                 .exec();
             if (!team) {
                 throw new common_1.NotFoundException('Team not found');
-            }
-            if (team.status !== team_schema_1.TeamStatus.ACTIVE) {
-                throw new common_1.NotFoundException('Team not found or inactive');
             }
             return team;
         }
@@ -161,14 +129,19 @@ let TeamsService = TeamsService_1 = class TeamsService {
             if (!team) {
                 throw new common_1.NotFoundException('Team not found');
             }
-            if (!this.isUserOwnerOrAdmin(team, userId)) {
-                throw new common_1.ForbiddenException('Only team owners or admins can update the team');
+            if (!this.isUserOwner(team, userId)) {
+                throw new common_1.ForbiddenException('Only team owner can update the team');
             }
             const updatedTeam = await this.teamModel
-                .findByIdAndUpdate(id, updateTeamDto, {
+                .findByIdAndUpdate(id, {
+                ...updateTeamDto,
+                lastActivity: new Date()
+            }, {
                 new: true,
                 runValidators: true
             })
+                .populate('owner', 'name email')
+                .populate('members.user', 'name email')
                 .exec();
             if (!updatedTeam) {
                 throw new common_1.NotFoundException('Team not found after update');
@@ -219,40 +192,21 @@ let TeamsService = TeamsService_1 = class TeamsService {
             if (!team) {
                 throw new common_1.NotFoundException('Team not found');
             }
-            if (!this.isUserOwnerOrAdmin(team, inviterId)) {
-                throw new common_1.ForbiddenException('Only team owners or admins can invite members');
+            if (!this.isUserOwner(team, inviterId)) {
+                throw new common_1.ForbiddenException('Only team owner can invite members');
             }
-            let user = null;
-            if (inviteMemberDto.userId) {
-                if (!mongoose_2.Types.ObjectId.isValid(inviteMemberDto.userId)) {
-                    throw new common_1.BadRequestException('Invalid user ID');
-                }
-                user = await this.userModel.findById(inviteMemberDto.userId);
-            }
-            else if (inviteMemberDto.email) {
-                user = await this.userModel.findOne({
-                    email: inviteMemberDto.email.toLowerCase().trim()
-                });
-            }
-            else {
-                throw new common_1.BadRequestException('Either userId or email must be provided');
-            }
+            const user = await this.userModel.findOne({
+                email: inviteMemberDto.email.toLowerCase().trim()
+            });
             if (!user) {
-                throw new common_1.NotFoundException('User not found');
+                throw new common_1.NotFoundException('User not found with this email');
             }
             const targetUserId = user._id.toString();
             const isAlreadyMember = team.members.some(member => this.getUserId(member.user) === targetUserId);
             if (isAlreadyMember) {
                 throw new common_1.BadRequestException('User is already a team member');
             }
-            const isAlreadyInvited = team.pendingInvites.some(invite => this.getUserId(invite) === targetUserId);
-            if (isAlreadyInvited) {
-                throw new common_1.BadRequestException('User is already invited to the team');
-            }
-            if (team.members.length >= team.maxMembers) {
-                throw new common_1.BadRequestException('Team has reached maximum member limit');
-            }
-            team.pendingInvites.push(user._id);
+            team.lastActivity = new Date();
             const updatedTeam = await team.save();
             this.logger.log(`Member invited to team ${teamId}: ${targetUserId} by user: ${inviterId}`);
             return updatedTeam;
@@ -265,83 +219,31 @@ let TeamsService = TeamsService_1 = class TeamsService {
             throw new common_1.InternalServerErrorException('Failed to invite member');
         }
     }
-    async joinTeam(teamId, userId, message) {
+    async joinTeam(inviteCode, userId) {
         try {
-            if (!mongoose_2.Types.ObjectId.isValid(teamId)) {
-                throw new common_1.BadRequestException('Invalid team ID');
-            }
-            const team = await this.teamModel.findById(teamId);
+            const team = await this.teamModel.findOne({ inviteCode });
             if (!team) {
-                throw new common_1.NotFoundException('Team not found');
-            }
-            if (!team.settings.isPublic || !team.settings.allowJoinRequests) {
-                throw new common_1.ForbiddenException('This team is not accepting join requests');
+                throw new common_1.NotFoundException('Invalid invite code or team not found');
             }
             const isAlreadyMember = team.members.some(member => this.getUserId(member.user) === userId);
             if (isAlreadyMember) {
                 throw new common_1.BadRequestException('You are already a member of this team');
             }
-            const hasPendingRequest = team.joinRequests.some(request => this.getUserId(request.user) === userId);
-            if (hasPendingRequest) {
-                throw new common_1.BadRequestException('You already have a pending join request');
-            }
-            if (team.members.length >= team.maxMembers) {
-                throw new common_1.BadRequestException('Team has reached maximum member limit');
-            }
-            team.joinRequests.push({
+            team.members.push({
                 user: new mongoose_2.Types.ObjectId(userId),
-                message: (message || 'I would like to join your team').trim(),
-                createdAt: new Date(),
+                joinedAt: new Date(),
             });
+            team.lastActivity = new Date();
             const updatedTeam = await team.save();
-            this.logger.log(`Join request submitted to team ${teamId} by user: ${userId}`);
+            this.logger.log(`User ${userId} joined team ${team._id} using invite code`);
             return updatedTeam;
         }
         catch (error) {
-            this.logger.error(`Failed to join team ${teamId}: ${error.message}`);
-            if (error instanceof common_1.NotFoundException || error instanceof common_1.ForbiddenException || error instanceof common_1.BadRequestException) {
+            this.logger.error(`Failed to join team with code ${inviteCode}: ${error.message}`);
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.BadRequestException) {
                 throw error;
             }
             throw new common_1.InternalServerErrorException('Failed to join team');
-        }
-    }
-    async respondToJoinRequest(teamId, requestUserId, approverId, accept) {
-        try {
-            if (!mongoose_2.Types.ObjectId.isValid(teamId) || !mongoose_2.Types.ObjectId.isValid(requestUserId)) {
-                throw new common_1.BadRequestException('Invalid team ID or user ID');
-            }
-            const team = await this.teamModel.findById(teamId);
-            if (!team) {
-                throw new common_1.NotFoundException('Team not found');
-            }
-            if (!this.isUserOwnerOrAdmin(team, approverId)) {
-                throw new common_1.ForbiddenException('Only team owners or admins can respond to join requests');
-            }
-            const requestIndex = team.joinRequests.findIndex(request => this.getUserId(request.user) === requestUserId);
-            if (requestIndex === -1) {
-                throw new common_1.NotFoundException('Join request not found');
-            }
-            team.joinRequests.splice(requestIndex, 1);
-            if (accept) {
-                if (team.members.length >= team.maxMembers) {
-                    throw new common_1.BadRequestException('Team has reached maximum member limit');
-                }
-                team.members.push({
-                    user: new mongoose_2.Types.ObjectId(requestUserId),
-                    role: team_schema_1.TeamRole.MEMBER,
-                    joinedAt: new Date(),
-                });
-            }
-            const updatedTeam = await team.save();
-            this.logger.log(`Join request ${accept ? 'accepted' : 'rejected'} for team ${teamId}, user: ${requestUserId}`);
-            return updatedTeam;
-        }
-        catch (error) {
-            this.logger.error(`Failed to respond to join request for team ${teamId}: ${error.message}`);
-            if (error instanceof common_1.NotFoundException || error instanceof common_1.ForbiddenException || error instanceof common_1.BadRequestException) {
-                throw error;
-            }
-            throw new common_1.InternalServerErrorException('Failed to respond to join request');
         }
     }
     async removeMember(teamId, memberId, removerId) {
@@ -353,27 +255,18 @@ let TeamsService = TeamsService_1 = class TeamsService {
             if (!team) {
                 throw new common_1.NotFoundException('Team not found');
             }
-            const removerMembership = team.members.find(member => this.getUserId(member.user) === removerId);
-            if (!removerMembership) {
-                throw new common_1.ForbiddenException('You are not a member of this team');
+            if (!this.isUserOwner(team, removerId)) {
+                throw new common_1.ForbiddenException('Only team owner can remove members');
             }
-            const isSelfRemoval = removerId === memberId;
-            const isOwnerOrAdmin = [team_schema_1.TeamRole.OWNER, team_schema_1.TeamRole.ADMIN].includes(removerMembership.role);
-            if (!isSelfRemoval && !isOwnerOrAdmin) {
-                throw new common_1.ForbiddenException('Only team owners or admins can remove other members');
-            }
-            if (isSelfRemoval && removerMembership.role === team_schema_1.TeamRole.OWNER) {
-                const otherOwners = team.members.filter(member => member.role === team_schema_1.TeamRole.OWNER &&
-                    this.getUserId(member.user) !== memberId);
-                if (otherOwners.length === 0) {
-                    throw new common_1.BadRequestException('Team must have at least one owner. Transfer ownership first.');
-                }
+            if (removerId === memberId) {
+                throw new common_1.BadRequestException('Owner cannot remove themselves from the team');
             }
             const memberIndex = team.members.findIndex(member => this.getUserId(member.user) === memberId);
             if (memberIndex === -1) {
                 throw new common_1.NotFoundException('Member not found in team');
             }
             team.members.splice(memberIndex, 1);
+            team.lastActivity = new Date();
             const updatedTeam = await team.save();
             this.logger.log(`Member removed from team ${teamId}: ${memberId} by user: ${removerId}`);
             return updatedTeam;
@@ -394,10 +287,10 @@ let TeamsService = TeamsService_1 = class TeamsService {
             const teams = await this.teamModel
                 .find({
                 'members.user': new mongoose_2.Types.ObjectId(userId),
-                status: team_schema_1.TeamStatus.ACTIVE,
             })
-                .populate('members.user', 'name email avatar')
-                .sort({ updatedAt: -1 })
+                .populate('owner', 'name email')
+                .populate('members.user', 'name email')
+                .sort({ lastActivity: -1 })
                 .exec();
             return teams;
         }
@@ -409,51 +302,52 @@ let TeamsService = TeamsService_1 = class TeamsService {
             throw new common_1.InternalServerErrorException('Failed to fetch user teams');
         }
     }
-    async searchTeams(skills, search, page = 1, limit = 10) {
+    async regenerateInviteCode(teamId, userId) {
         try {
-            const skip = (page - 1) * limit;
-            const query = { status: team_schema_1.TeamStatus.ACTIVE };
-            if (skills && skills.length > 0) {
-                const validSkills = skills.filter(skill => skill && skill.trim().length > 0);
-                if (validSkills.length > 0) {
-                    query.requiredSkills = { $in: validSkills };
+            if (!mongoose_2.Types.ObjectId.isValid(teamId)) {
+                throw new common_1.BadRequestException('Invalid team ID');
+            }
+            const team = await this.teamModel.findById(teamId);
+            if (!team) {
+                throw new common_1.NotFoundException('Team not found');
+            }
+            if (!this.isUserOwner(team, userId)) {
+                throw new common_1.ForbiddenException('Only team owner can regenerate invite code');
+            }
+            let newInviteCode;
+            let isUnique = false;
+            let attempts = 0;
+            while (!isUnique && attempts < 10) {
+                newInviteCode = this.generateInviteCode();
+                const existingTeam = await this.teamModel.findOne({ inviteCode: newInviteCode });
+                if (!existingTeam) {
+                    isUnique = true;
                 }
+                attempts++;
             }
-            if (search && search.trim()) {
-                const searchTerm = search.trim();
-                query.$or = [
-                    { name: { $regex: searchTerm, $options: 'i' } },
-                    { description: { $regex: searchTerm, $options: 'i' } },
-                    { projectIdea: { $regex: searchTerm, $options: 'i' } },
-                    { tags: { $in: [new RegExp(searchTerm, 'i')] } },
-                ];
+            if (!isUnique) {
+                throw new common_1.InternalServerErrorException('Failed to generate unique invite code');
             }
-            const [teams, total] = await Promise.all([
-                this.teamModel
-                    .find(query)
-                    .populate('members.user', 'name email avatar skills')
-                    .skip(skip)
-                    .limit(limit)
-                    .sort({ createdAt: -1 })
-                    .exec(),
-                this.teamModel.countDocuments(query),
-            ]);
-            const totalPages = Math.ceil(total / limit);
-            return {
-                teams: teams,
-                total,
-                page,
-                totalPages
-            };
+            team.inviteCode = newInviteCode;
+            team.lastActivity = new Date();
+            const updatedTeam = await team.save();
+            this.logger.log(`Invite code regenerated for team ${teamId} by user: ${userId}`);
+            return updatedTeam;
         }
         catch (error) {
-            this.logger.error(`Failed to search teams: ${error.message}`);
-            throw new common_1.InternalServerErrorException('Failed to search teams');
+            this.logger.error(`Failed to regenerate invite code for team ${teamId}: ${error.message}`);
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.ForbiddenException || error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.InternalServerErrorException('Failed to regenerate invite code');
         }
     }
     async verifyTeamMembership(teamId, userId) {
-        const team = await this.getTeamById(teamId);
-        const isMember = team.members.some(member => member.user.toString() === userId);
+        const team = await this.teamModel.findById(teamId);
+        if (!team) {
+            throw new common_1.NotFoundException('Team not found');
+        }
+        const isMember = this.isUserMember(team, userId);
         if (!isMember) {
             throw new common_1.ForbiddenException('You are not a member of this team');
         }
@@ -465,14 +359,6 @@ let TeamsService = TeamsService_1 = class TeamsService {
             throw new common_1.NotFoundException('Team not found');
         }
         return team;
-    }
-    async verifyTeamAdmin(teamId, userId) {
-        const team = await this.getTeamById(teamId);
-        const isAdmin = team.members.some(member => member.user.toString() === userId && ['owner', 'admin'].includes(member.role));
-        if (!isAdmin) {
-            throw new common_1.ForbiddenException('You do not have admin permissions for this team');
-        }
-        return true;
     }
 };
 exports.TeamsService = TeamsService;

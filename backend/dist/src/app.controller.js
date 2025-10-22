@@ -16,11 +16,9 @@ exports.AppController = void 0;
 const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
+const swagger_1 = require("@nestjs/swagger");
 let AppController = class AppController {
     connection;
-    getHello() {
-        throw new Error('Method not implemented.');
-    }
     constructor(connection) {
         this.connection = connection;
     }
@@ -37,17 +35,18 @@ let AppController = class AppController {
         try {
             const usersCount = await this.connection.collection('users').countDocuments();
             return {
-                database: 'MongoDB Atlas',
+                database: 'MongoDB',
                 status: 'connected',
                 usersCount: usersCount,
-                collections: this.connection.db ? (await this.connection.db.listCollections().toArray()).map(c => c.name) : []
+                timestamp: new Date().toISOString()
             };
         }
         catch (error) {
             return {
-                database: 'MongoDB Atlas',
+                database: 'MongoDB',
                 status: 'error',
-                error: error.message
+                error: error.message,
+                timestamp: new Date().toISOString()
             };
         }
     }
@@ -55,17 +54,22 @@ let AppController = class AppController {
 exports.AppController = AppController;
 __decorate([
     (0, common_1.Get)('health'),
+    (0, swagger_1.ApiOperation)({ summary: 'Health check' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Service health status' }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getHealth", null);
 __decorate([
     (0, common_1.Get)('test-db'),
+    (0, swagger_1.ApiOperation)({ summary: 'Test database connection' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Database connection test' }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AppController.prototype, "testDb", null);
 exports.AppController = AppController = __decorate([
+    (0, swagger_1.ApiTags)('App'),
     (0, common_1.Controller)(),
     __param(0, (0, mongoose_1.InjectConnection)()),
     __metadata("design:paramtypes", [mongoose_2.Connection])

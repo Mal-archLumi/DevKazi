@@ -11,28 +11,24 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserSchema = exports.User = void 0;
 const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
-const role_enum_1 = require("../../../auth/enums/role.enum");
-let User = class User extends mongoose_2.Document {
+let User = class User {
     email;
     password;
     name;
+    googleId;
+    picture;
     skills;
     bio;
     education;
     avatar;
-    roles;
     isVerified;
     isProfilePublic;
-    company;
-    position;
-    github;
-    linkedin;
-    portfolio;
-    experienceYears;
     isActive;
+    joinedTeams;
     createdAt;
     updatedAt;
+    resetPasswordToken;
+    resetPasswordExpires;
 };
 exports.User = User;
 __decorate([
@@ -40,13 +36,21 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "email", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, minlength: 8 }),
+    (0, mongoose_1.Prop)({ minlength: 6 }),
     __metadata("design:type", String)
 ], User.prototype, "password", void 0);
 __decorate([
     (0, mongoose_1.Prop)({ required: true, trim: true, minlength: 2, maxlength: 50 }),
     __metadata("design:type", String)
 ], User.prototype, "name", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ unique: true, sparse: true }),
+    __metadata("design:type", String)
+], User.prototype, "googleId", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", String)
+], User.prototype, "picture", void 0);
 __decorate([
     (0, mongoose_1.Prop)({ type: [String], default: [] }),
     __metadata("design:type", Array)
@@ -64,10 +68,6 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "avatar", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [String], enum: Object.values(role_enum_1.Role), default: [role_enum_1.Role.STUDENT] }),
-    __metadata("design:type", Array)
-], User.prototype, "roles", void 0);
-__decorate([
     (0, mongoose_1.Prop)({ default: false }),
     __metadata("design:type", Boolean)
 ], User.prototype, "isVerified", void 0);
@@ -76,42 +76,29 @@ __decorate([
     __metadata("design:type", Boolean)
 ], User.prototype, "isProfilePublic", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ trim: true, maxlength: 100 }),
-    __metadata("design:type", String)
-], User.prototype, "company", void 0);
-__decorate([
-    (0, mongoose_1.Prop)({ trim: true, maxlength: 100 }),
-    __metadata("design:type", String)
-], User.prototype, "position", void 0);
-__decorate([
-    (0, mongoose_1.Prop)({ match: /^https?:\/\/.+\..+$/ }),
-    __metadata("design:type", String)
-], User.prototype, "github", void 0);
-__decorate([
-    (0, mongoose_1.Prop)({ match: /^https?:\/\/.+\..+$/ }),
-    __metadata("design:type", String)
-], User.prototype, "linkedin", void 0);
-__decorate([
-    (0, mongoose_1.Prop)({ match: /^https?:\/\/.+\..+$/ }),
-    __metadata("design:type", String)
-], User.prototype, "portfolio", void 0);
-__decorate([
-    (0, mongoose_1.Prop)({ min: 0, max: 50, default: 0 }),
-    __metadata("design:type", Number)
-], User.prototype, "experienceYears", void 0);
-__decorate([
     (0, mongoose_1.Prop)({ default: true }),
     __metadata("design:type", Boolean)
 ], User.prototype, "isActive", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ virtual: true }),
+    __metadata("design:type", Array)
+], User.prototype, "joinedTeams", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", String)
+], User.prototype, "resetPasswordToken", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", Date)
+], User.prototype, "resetPasswordExpires", void 0);
 exports.User = User = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], User);
 exports.UserSchema = mongoose_1.SchemaFactory.createForClass(User);
 exports.UserSchema.index({ email: 1 });
+exports.UserSchema.index({ googleId: 1 });
 exports.UserSchema.index({ skills: 1 });
-exports.UserSchema.index({ name: 'text', bio: 'text', education: 'text' });
-exports.UserSchema.index({ roles: 1 });
+exports.UserSchema.index({ name: 'text', bio: 'text' });
 exports.UserSchema.index({ isActive: 1 });
 exports.UserSchema.index({ isVerified: 1 });
-exports.UserSchema.index({ isProfilePublic: 1 });
 //# sourceMappingURL=user.schema.js.map

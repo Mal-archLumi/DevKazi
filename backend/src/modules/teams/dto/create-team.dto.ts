@@ -1,53 +1,22 @@
-import { IsString, IsArray, IsOptional, IsNumber, IsBoolean, IsUrl, Min, Max } from 'class-validator';
-import { TeamRole } from '../../teams/schemas/team.schema';
+import { IsString, IsOptional, IsArray, MinLength, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateTeamDto {
+  @ApiProperty({ example: 'Awesome Project Team', description: 'Team name' })
   @IsString()
+  @MinLength(2, { message: 'Team name must be at least 2 characters' })
+  @MaxLength(50, { message: 'Team name cannot exceed 50 characters' })
   name: string;
 
-  @IsString()
+  @ApiPropertyOptional({ example: 'We are building a cool app', description: 'Team description' })
   @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'Description cannot exceed 500 characters' })
   description?: string;
 
-  @IsString()
+  @ApiPropertyOptional({ example: ['javascript', 'react'], description: 'Team skills' })
   @IsOptional()
-  projectIdea?: string;
-
   @IsArray()
-  @IsOptional()
-  requiredSkills?: string[];
-
-  @IsArray()
-  @IsOptional()
-  preferredSkills?: string[];
-
-  @IsNumber()
-  @Min(2)
-  @Max(10)
-  @IsOptional()
-  maxMembers?: number;
-
-  @IsBoolean()
-  @IsOptional()
-  isPublic?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  allowJoinRequests?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  requireApproval?: boolean;
-
-  @IsArray()
-  @IsOptional()
-  tags?: string[];
-
-  @IsUrl()
-  @IsOptional()
-  githubRepo?: string;
-
-  @IsUrl()
-  @IsOptional()
-  projectDemoUrl?: string;
+  @IsString({ each: true })
+  skills?: string[];
 }

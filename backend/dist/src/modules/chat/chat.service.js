@@ -23,14 +23,44 @@ let ChatService = class ChatService {
         this.messageModel = messageModel;
     }
     async createMessage(createMessageDto) {
-        const message = new this.messageModel(createMessageDto);
+        if (!createMessageDto.team || !createMessageDto.sender || !createMessageDto.content) {
+            throw new common_1.BadRequestException('Team, sender, and content are required');
+        }
+        if (createMessageDto.content.trim().length === 0) {
+            throw new common_1.BadRequestException('Message content cannot be empty');
+        }
+        if (createMessageDto.content.length > 1000) {
+            throw new common_1.BadRequestException('Message too long (max 1000 characters)');
+        }
+        const message = new this.messageModel({
+            team: new mongoose_2.Types.ObjectId(createMessageDto.team),
+            sender: new mongoose_2.Types.ObjectId(createMessageDto.sender),
+            content: createMessageDto.content.trim(),
+            timestamp: new Date(),
+        });
         return message.save();
     }
-    async getTeamMessages(teamId) {
-        return this.messageModel.find({ team: teamId })
+    async getTeamMessages(teamId, limit = 100) {
+        if (!mongoose_2.Types.ObjectId.isValid(teamId)) {
+            throw new common_1.BadRequestException('Invalid team ID');
+        }
+        return this.messageModel
+            .find({ team: new mongoose_2.Types.ObjectId(teamId) })
             .populate('sender', 'name email')
-            .sort({ createdAt: 1 })
-            .limit(100);
+            .sort({ timestamp: 1 })
+            .limit(limit)
+            .exec();
+    }
+    async getRecentTeamMessages(teamId, limit = 50) {
+        if (!mongoose_2.Types.ObjectId.isValid(teamId)) {
+            throw new common_1.BadRequestException('Invalid team ID');
+        }
+        return this.messageModel
+            .find({ team: new mongoose_2.Types.ObjectId(teamId) })
+            .populate('sender', 'name email')
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .exec();
     }
 };
 exports.ChatService = ChatService;

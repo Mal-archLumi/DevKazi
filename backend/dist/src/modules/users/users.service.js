@@ -17,7 +17,6 @@ const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const user_schema_1 = require("./schemas/user.schema");
-const role_enum_1 = require("../../auth/enums/role.enum");
 let UsersService = class UsersService {
     userModel;
     constructor(userModel) {
@@ -46,20 +45,8 @@ let UsersService = class UsersService {
     async getPublicProfile(userId) {
         const user = await this.userModel.findOne({
             _id: userId,
-            $and: [
-                {
-                    $or: [
-                        { isActive: true },
-                        { isActive: { $exists: false } }
-                    ]
-                },
-                {
-                    $or: [
-                        { isProfilePublic: true },
-                        { isProfilePublic: { $exists: false } }
-                    ]
-                }
-            ]
+            isActive: true,
+            isProfilePublic: true,
         });
         if (!user) {
             throw new common_1.NotFoundException('User not found or profile is private');
@@ -70,16 +57,6 @@ let UsersService = class UsersService {
         const user = await this.userModel.findById(userId);
         if (!user) {
             throw new common_1.NotFoundException('User not found');
-        }
-        if (updateData.role && user.roles && user.roles.length > 0 && updateData.role !== user.roles[0]) {
-            throw new common_1.ForbiddenException('Cannot change role through profile update');
-        }
-        if (updateData.email && updateData.email !== user.email) {
-            const existingUser = await this.userModel.findOne({ email: updateData.email.toLowerCase() });
-            if (existingUser) {
-                throw new common_1.BadRequestException('Email already exists');
-            }
-            updateData.email = updateData.email.toLowerCase();
         }
         const updatedUser = await this.userModel.findByIdAndUpdate(userId, { ...updateData, updatedAt: new Date() }, { new: true, runValidators: true });
         if (!updatedUser) {
@@ -125,115 +102,14 @@ let UsersService = class UsersService {
         }
         return this.mapToUserResponseDto(updatedUser);
     }
-    async searchUsers(searchDto) {
-        const page = searchDto.page || 1;
-        const limit = searchDto.limit || 10;
-        const skip = (page - 1) * limit;
-        const filter = {
-            $and: [
-                {
-                    $or: [
-                        { isActive: true },
-                        { isActive: { $exists: false } }
-                    ]
-                },
-                {
-                    $or: [
-                        { isProfilePublic: true },
-                        { isProfilePublic: { $exists: false } }
-                    ]
-                }
-            ]
-        };
-        if (searchDto.role)
-            filter.role = searchDto.role;
-        if (searchDto.verifiedOnly)
-            filter.isVerified = true;
-        if (searchDto.skills && searchDto.skills.length > 0) {
-            filter.skills = { $in: searchDto.skills.map(skill => new RegExp(skill, 'i')) };
-        }
-        if (searchDto.query) {
-            filter.$or = [
-                { name: { $regex: searchDto.query, $options: 'i' } },
-                { bio: { $regex: searchDto.query, $options: 'i' } },
-                { education: { $regex: searchDto.query, $options: 'i' } },
-                { skills: { $in: [new RegExp(searchDto.query, 'i')] } }
-            ];
-        }
-        const [users, total] = await Promise.all([
-            this.userModel
-                .find(filter)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .exec(),
-            this.userModel.countDocuments(filter),
-        ]);
-        return {
-            users: users.map(user => this.mapToPublicUserResponseDto(user)),
-            total,
-        };
-    }
-    async getMentors() {
-        const mentors = await this.userModel.find({
-            roles: role_enum_1.Role.MENTOR,
-            $and: [
-                {
-                    $or: [
-                        { isActive: true },
-                        { isActive: { $exists: false } }
-                    ]
-                },
-                {
-                    $or: [
-                        { isProfilePublic: true },
-                        { isProfilePublic: { $exists: false } }
-                    ]
-                }
-            ]
-        });
-        return mentors.map(mentor => this.mapToPublicUserResponseDto(mentor));
-    }
-    async getStudents() {
-        const students = await this.userModel.find({
-            roles: role_enum_1.Role.STUDENT,
-            $and: [
-                {
-                    $or: [
-                        { isActive: true },
-                        { isActive: { $exists: false } }
-                    ]
-                },
-                {
-                    $or: [
-                        { isProfilePublic: true },
-                        { isProfilePublic: { $exists: false } }
-                    ]
-                }
-            ]
-        });
-        return students.map(student => this.mapToPublicUserResponseDto(student));
-    }
-    async requestVerification(userId) {
-        const user = await this.userModel.findById(userId);
-        if (!user) {
-            throw new common_1.NotFoundException('User not found');
-        }
-        console.log(`Verification requested for user: ${user.email}`);
-        return { message: 'Verification request submitted. An admin will review your profile.' };
-    }
     validateSkills(skills) {
-        const validSkills = [
-            'JavaScript', 'TypeScript', 'Python', 'Java', 'C#', 'C++', 'Ruby', 'Go',
-            'React', 'Angular', 'Vue', 'Node.js', 'Express', 'NestJS', 'Django', 'Spring',
-            'MongoDB', 'PostgreSQL', 'MySQL', 'Redis', 'Docker', 'Kubernetes', 'AWS', 'Azure',
-            'Git', 'REST API', 'GraphQL', 'Machine Learning', 'Data Science', 'DevOps'
-        ];
-        const validatedSkills = skills.filter(skill => validSkills.some(validSkill => validSkill.toLowerCase() === skill.trim().toLowerCase()));
+        const validatedSkills = skills
+            .map(skill => skill.trim())
+            .filter(skill => skill.length > 0);
         if (validatedSkills.length === 0) {
             throw new common_1.BadRequestException('No valid skills provided');
         }
-        return validatedSkills.map(skill => validSkills.find(validSkill => validSkill.toLowerCase() === skill.trim().toLowerCase())).filter((skill) => skill !== undefined);
+        return validatedSkills;
     }
     mapToUserResponseDto(user) {
         const userObj = user.toObject ? user.toObject() : user;
@@ -241,19 +117,13 @@ let UsersService = class UsersService {
             _id: userObj._id?.toString() || '',
             email: userObj.email,
             name: userObj.name,
-            role: (userObj.roles && userObj.roles.length > 0) ? userObj.roles[0] : role_enum_1.Role.STUDENT,
+            skills: userObj.skills || [],
             bio: userObj.bio,
             education: userObj.education,
-            skills: userObj.skills || [],
             avatar: userObj.avatar,
             isVerified: userObj.isVerified || false,
             isProfilePublic: userObj.isProfilePublic !== undefined ? userObj.isProfilePublic : true,
-            company: userObj.company,
-            position: userObj.position,
-            github: userObj.github,
-            linkedin: userObj.linkedin,
-            portfolio: userObj.portfolio,
-            experienceYears: userObj.experienceYears || 0,
+            isActive: userObj.isActive !== undefined ? userObj.isActive : true,
             createdAt: userObj.createdAt || new Date(),
             updatedAt: userObj.updatedAt || new Date(),
         };
@@ -263,14 +133,10 @@ let UsersService = class UsersService {
         return {
             _id: userObj._id?.toString() || '',
             name: userObj.name,
-            role: (userObj.roles && userObj.roles.length > 0) ? userObj.roles[0] : role_enum_1.Role.STUDENT,
-            bio: userObj.bio,
             skills: userObj.skills || [],
+            bio: userObj.bio,
             avatar: userObj.avatar,
             isVerified: userObj.isVerified || false,
-            company: userObj.company,
-            position: userObj.position,
-            experienceYears: userObj.experienceYears || 0,
         };
     }
 };

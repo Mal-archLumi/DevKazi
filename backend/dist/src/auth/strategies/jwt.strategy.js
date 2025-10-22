@@ -45,7 +45,6 @@ let JwtStrategy = JwtStrategy_1 = class JwtStrategy extends (0, passport_1.Passp
                 userId: user._id.toString(),
                 email: user.email,
                 name: user.name,
-                roles: user.roles,
                 isVerified: user.isVerified,
             };
         }

@@ -1,32 +1,33 @@
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 export type UserDocument = User & Document;
-export declare class User extends Document {
+export declare class User {
     email: string;
-    password: string;
+    password?: string;
     name: string;
+    googleId?: string;
+    picture?: string;
     skills: string[];
-    bio: string;
-    education: string;
-    avatar: string;
-    roles: string[];
+    bio?: string;
+    education?: string;
+    avatar?: string;
     isVerified: boolean;
     isProfilePublic: boolean;
-    company: string;
-    position: string;
-    github: string;
-    linkedin: string;
-    portfolio: string;
-    experienceYears: number;
     isActive: boolean;
+    joinedTeams?: Array<{
+        team: Types.ObjectId;
+        joinedAt: Date;
+    }>;
     createdAt: Date;
     updatedAt: Date;
+    resetPasswordToken?: string;
+    resetPasswordExpires?: Date;
 }
-export declare const UserSchema: import("mongoose").Schema<User, import("mongoose").Model<User, any, any, any, Document<unknown, any, User, any, {}> & User & Required<{
-    _id: unknown;
-}> & {
+export declare const UserSchema: import("mongoose").Schema<User, import("mongoose").Model<User, any, any, any, Document<unknown, any, User, any, {}> & User & {
+    _id: Types.ObjectId;
+} & {
     __v: number;
-}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, User, Document<unknown, {}, import("mongoose").FlatRecord<User>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<User> & Required<{
-    _id: unknown;
-}> & {
+}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, User, Document<unknown, {}, import("mongoose").FlatRecord<User>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<User> & {
+    _id: Types.ObjectId;
+} & {
     __v: number;
 }>;

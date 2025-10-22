@@ -1,24 +1,13 @@
-import { IsEmail, IsString, IsOptional, IsArray } from 'class-validator';
+import { IsEmail, IsString, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class InviteMemberDto {
+  @ApiProperty({ example: 'user@example.com', description: 'Email to invite' })
   @IsEmail()
-  @IsOptional()
-  email?: string;
+  email: string;
 
+  @ApiPropertyOptional({ example: 'Join our team!', description: 'Invitation message' })
+  @IsOptional()
   @IsString()
-  @IsOptional()
-  userId?: string;
-
-  @IsString()
-  @IsOptional()
-  message?: string;
-}
-
-export class BulkInviteDto {
-  @IsArray()
-  emails: string[];
-
-  @IsString()
-  @IsOptional()
   message?: string;
 }

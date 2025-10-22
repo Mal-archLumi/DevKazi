@@ -1,7 +1,6 @@
 import { Connection } from 'mongoose';
 export declare class AppController {
     private readonly connection;
-    getHello(): any;
     constructor(connection: Connection);
     getHealth(): {
         status: string;
@@ -13,13 +12,13 @@ export declare class AppController {
         database: string;
         status: string;
         usersCount: number;
-        collections: string[];
+        timestamp: string;
         error?: undefined;
     } | {
         database: string;
         status: string;
         error: any;
+        timestamp: string;
         usersCount?: undefined;
-        collections?: undefined;
     }>;
 }

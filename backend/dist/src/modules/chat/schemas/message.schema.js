@@ -16,32 +16,28 @@ let Message = class Message extends mongoose_2.Document {
     team;
     sender;
     content;
-    type;
-    fileUrl;
+    timestamp;
 };
 exports.Message = Message;
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Team', required: true }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Team', required: true, index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Message.prototype, "team", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', required: true }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', required: true, index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Message.prototype, "sender", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, mongoose_1.Prop)({ required: true, trim: true, maxlength: 1000 }),
     __metadata("design:type", String)
 ], Message.prototype, "content", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 'text' }),
-    __metadata("design:type", String)
-], Message.prototype, "type", void 0);
-__decorate([
-    (0, mongoose_1.Prop)(),
-    __metadata("design:type", String)
-], Message.prototype, "fileUrl", void 0);
+    (0, mongoose_1.Prop)({ default: Date.now }),
+    __metadata("design:type", Date)
+], Message.prototype, "timestamp", void 0);
 exports.Message = Message = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], Message);
 exports.MessageSchema = mongoose_1.SchemaFactory.createForClass(Message);
+exports.MessageSchema.index({ team: 1, timestamp: 1 });
 //# sourceMappingURL=message.schema.js.map

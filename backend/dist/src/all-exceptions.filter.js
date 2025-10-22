@@ -21,11 +21,7 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
         const message = exception instanceof common_1.HttpException
             ? exception.getResponse()
             : { message: 'Internal server error' };
-        this.logger.error(`Error occurred: ${JSON.stringify({
-            path: request.url,
-            status,
-            message,
-        })}`, exception instanceof Error ? exception.stack : '');
+        this.logger.error(`Error: ${request.method} ${request.url} - Status: ${status}`, exception instanceof Error ? exception.stack : '');
         response.status(status).json({
             statusCode: status,
             message: typeof message === 'string' ? message : message.message || 'An error occurred',

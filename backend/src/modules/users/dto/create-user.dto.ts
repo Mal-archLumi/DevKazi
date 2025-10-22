@@ -1,33 +1,23 @@
-import { IsEmail, IsString, IsEnum, IsOptional, IsArray, MinLength, MaxLength, Matches } from 'class-validator';
-import { Role } from '../../../auth/enums/role.enum';
+import { IsEmail, IsString, IsOptional, IsArray, MinLength, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
+  @ApiProperty({ example: 'user@example.com', description: 'User email address' })
   @IsEmail()
   email: string;
 
+  @ApiProperty({ example: 'John Doe', description: 'User full name' })
   @IsString()
   @MinLength(2)
   @MaxLength(50)
   name: string;
 
+  @ApiProperty({ example: 'Password123!', description: 'User password' })
   @IsString()
-  @MinLength(8)
-  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#\$%\^&\*])/, {
-    message: 'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
-  })
+  @MinLength(6)
   password: string;
 
-  @IsEnum(Role)
-  role: Role;
-
-  @IsOptional()
-  @IsString()
-  bio?: string;
-
-  @IsOptional()
-  @IsString()
-  education?: string;
-
+  @ApiProperty({ example: ['JavaScript', 'React'], description: 'User skills', required: false })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

@@ -1,42 +1,60 @@
-import { Role } from '../../../auth/enums/role.enum';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Types } from 'mongoose';
 
 export class UserResponseDto {
-  _id: string;
+  @ApiProperty({ type: String })
+  _id: Types.ObjectId;
+
+  @ApiProperty()
   email: string;
+
+  @ApiProperty()
   name: string;
+
+  @ApiProperty({ type: [String] })
   skills: string[];
-  bio: string;
-  education: string;
-  avatar: string;
-  role: Role;
+
+  @ApiPropertyOptional()
+  bio?: string;
+
+  @ApiPropertyOptional()
+  education?: string;
+
+  @ApiPropertyOptional()
+  avatar?: string;
+
+  @ApiProperty()
   isVerified: boolean;
-  
-  // New Phase 2 fields
+
+  @ApiProperty()
   isProfilePublic: boolean;
-  company: string;
-  position: string;
-  github: string;
-  linkedin: string;
-  portfolio: string;
-  experienceYears: number;
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty()
   createdAt: Date;
+
+  @ApiProperty()
   updatedAt: Date;
 }
 
 export class PublicUserResponseDto {
-  _id: string;
-  name: string;
-  role: Role;
-  bio: string;
-  skills: string[];
-  avatar: string;
-  isVerified: boolean;
-  
-  // New Phase 2 fields (public only)
-  company: string;
-  position: string;
-  experienceYears: number;
-}
+  @ApiProperty({ type: String })
+  _id: Types.ObjectId;
 
-// For internal use (extends the full response)
-export class PrivateUserResponseDto extends UserResponseDto {}
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: [String] })
+  skills: string[];
+
+  @ApiPropertyOptional()
+  bio?: string;
+
+  @ApiPropertyOptional()
+  avatar?: string;
+
+  @ApiProperty()
+  isVerified: boolean;
+}

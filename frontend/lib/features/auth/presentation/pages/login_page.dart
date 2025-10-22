@@ -1,324 +1,511 @@
+// lib/features/auth/presentation/pages/login_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:frontend/core/widgets/common/loaders/loading_overlay.dart';
+import 'package:frontend/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:frontend/features/auth/presentation/pages/signup_page.dart';
 import 'package:frontend/features/auth/presentation/widgets/email_field.dart';
 import 'package:frontend/features/auth/presentation/widgets/password_field.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
+  String? _errorMessage;
+  late AnimationController _errorAnimationController;
+  late Animation<double> _errorAnimation;
+
   // Text editing controllers
-  static final TextEditingController emailController = TextEditingController();
-  static final TextEditingController passwordController =
-      TextEditingController();
-  static final ValueNotifier<bool> rememberMe = ValueNotifier<bool>(false);
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final ValueNotifier<bool> rememberMe = ValueNotifier<bool>(false);
 
-  void _handleLogin(BuildContext context) {
-    // TODO: Implement login logic
-  }
-
-  void _handleGoogleSignIn(BuildContext context) {
-    // TODO: Implement Google sign in
-  }
-
-  void _navigateToSignUp(BuildContext context) {
-    // TODO: Navigate to sign up page
-  }
-
-  void _navigateToForgotPassword(BuildContext context) {
-    // TODO: Navigate to forgot password page
+  @override
+  void initState() {
+    super.initState();
+    _errorAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _errorAnimation = CurvedAnimation(
+      parent: _errorAnimationController,
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                // Logo
-                Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  child: Image.asset(
-                    'assets/images/logos/devkazi.png',
-                    width: 100,
-                    height: 100,
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    rememberMe.dispose();
+    _errorAnimationController.dispose();
+    super.dispose();
+  }
+
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+    _errorAnimationController.forward();
+
+    // Auto-hide error after 4 seconds
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        _hideError();
+      }
+    });
+  }
+
+  void _hideError() {
+    _errorAnimationController.reverse().then((_) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = null;
+        });
+      }
+    });
+  }
+
+  void _handleLogin(BuildContext context) {
+    // Validate inputs
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty) {
+      _showError('Please enter your email address');
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      _showError('Please enter a valid email address');
+      return;
+    }
+
+    if (password.isEmpty) {
+      _showError('Please enter your password');
+      return;
+    }
+
+    // Make password validation consistent with signup (8+ characters)
+    if (password.length < 8) {
+      _showError('Password must be at least 8 characters long');
+      return;
+    }
+
+    // Use AuthCubit for login
+    if (!mounted) return;
+
+    context.read<AuthCubit>().login(email, password);
+  }
+
+  void _handleGoogleSignIn(BuildContext context) {
+    // Use AuthCubit for Google Sign-In
+    context.read<AuthCubit>().loginWithGoogle();
+  }
+
+  void _navigateToSignUp(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => const SignUpPage(),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _navigateToForgotPassword(BuildContext context) {
+    // TODO: Implement navigation to forgot password page
+    Navigator.pushNamed(context, '/forgot-password');
+  }
+
+  Widget _buildErrorWidget() {
+    if (_errorMessage == null) return const SizedBox.shrink();
+
+    return FadeTransition(
+      opacity: _errorAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -0.5),
+          end: Offset.zero,
+        ).animate(_errorAnimation),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.red.shade200),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.shade100.withOpacity(0.5),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                color: Colors.red.shade600,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _errorMessage!,
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-
-                const SizedBox(height: 10),
-
-                // DevKazi title with gradient
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [Colors.green, Colors.blue, Colors.orange],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'DevKazi',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+              ),
+              GestureDetector(
+                onTap: _hideError,
+                child: Icon(
+                  Icons.close_rounded,
+                  color: Colors.red.shade400,
+                  size: 18,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                const SizedBox(height: 20),
-
-                // Code. Connect. Create.
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Code. ',
-                        style: TextStyle(
-                          color: Colors.green[700],
-                          fontSize: 16,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'Connect. ',
-                        style: TextStyle(
-                          color: const Color.fromARGB(255, 21, 88, 143),
-                          fontSize: 16,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'Create.',
-                        style: TextStyle(
-                          color: Colors.orange[300],
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                // Email field
-                EmailField(controller: emailController, hintText: 'Email'),
-
-                const SizedBox(height: 16),
-
-                // Password field
-                PasswordField(
-                  controller: passwordController,
-                  hintText: 'Password',
-                ),
-
-                const SizedBox(height: 16),
-
-                // Remember me & Forgot password
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildLoginForm(bool isLoading) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          SystemNavigator.pop();
+        }
+      },
+      child: LoadingOverlay(
+        isLoading: isLoading,
+        child: Scaffold(
+          backgroundColor: Colors.grey.shade50,
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
                   children: [
-                    // Remember Me
-                    ValueListenableBuilder<bool>(
-                      valueListenable: rememberMe,
-                      builder: (context, value, child) {
-                        return Row(
+                    // Logo
+                    Container(
+                      margin: const EdgeInsets.only(top: 20),
+                      child: Image.asset(
+                        'assets/images/logos/devkazi.png',
+                        width: 100,
+                        height: 100,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // DevKazi title with gradient
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.green, Colors.blue, Colors.orange],
+                      ).createShader(bounds),
+                      child: const Text(
+                        'DevKazi',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Code. Connect. Create.
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Code. ',
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontSize: 16,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'Connect. ',
+                            style: TextStyle(
+                              color: const Color.fromARGB(255, 21, 88, 143),
+                              fontSize: 16,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'Create.',
+                            style: TextStyle(
+                              color: Colors.orange[300],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // Error message widget
+                    _buildErrorWidget(),
+
+                    // Email field
+                    EmailField(controller: emailController, hintText: 'Email'),
+
+                    const SizedBox(height: 16),
+
+                    // Password field
+                    PasswordField(
+                      controller: passwordController,
+                      hintText: 'Password',
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Remember me & Forgot password
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Remember Me
+                        ValueListenableBuilder<bool>(
+                          valueListenable: rememberMe,
+                          builder: (context, value, child) {
+                            return Row(
+                              children: [
+                                Checkbox(
+                                  value: value,
+                                  onChanged: isLoading
+                                      ? null
+                                      : (newValue) {
+                                          rememberMe.value = newValue ?? false;
+                                        },
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                Text(
+                                  'Remember me',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontSize: 14),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+
+                        // Forgot Password
+                        GestureDetector(
+                          onTap: isLoading
+                              ? null
+                              : () => _navigateToForgotPassword(context),
+                          child: Text(
+                            'Forgot password?',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Colors.blue[700],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Sign In Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 53,
+                      child: ElevatedButton(
+                        onPressed: isLoading
+                            ? null
+                            : () => _handleLogin(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black87,
+                          elevation: 1,
+                          shadowColor: Colors.black12,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        child: const Text('Sign in'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Divider with "or"
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: Colors.grey.shade400)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'or',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: Colors.grey.shade400)),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Google Sign In Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 53,
+                      child: OutlinedButton(
+                        onPressed: isLoading
+                            ? null
+                            : () => _handleGoogleSignIn(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black87,
+                          side: BorderSide(color: Colors.grey.shade400),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Checkbox(
-                              value: value,
-                              onChanged: (newValue) {
-                                rememberMe.value = newValue ?? false;
-                              },
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                            Image.asset(
+                              'assets/images/logos/google_g.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
                             ),
-                            Text(
-                              'Remember me',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.copyWith(fontSize: 14),
-                            ),
+                            const SizedBox(width: 12),
+                            const Text('Continue with Google'),
                           ],
-                        );
-                      },
-                    ),
-
-                    // Forgot Password
-                    GestureDetector(
-                      onTap: () => _navigateToForgotPassword(context),
-                      child: Text(
-                        'Forgot password?',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.blue[700],
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                  ],
-                ),
 
-                const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
-                // Sign In Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () => _handleLogin(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      elevation: 1,
-                      shadowColor: Colors.black12,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: const Text('Sign in'),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Divider with "or"
-                Row(
-                  children: [
-                    Expanded(child: Divider(color: Colors.grey.shade400)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'or',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    Expanded(child: Divider(color: Colors.grey.shade400)),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Google Sign In Button - Clean outline style
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: OutlinedButton(
-                    onPressed: () => _handleGoogleSignIn(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black87,
-                      side: BorderSide(color: Colors.grey.shade400),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: Row(
+                    // Sign up link
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset(
-                          'assets/images/logos/google_g.png',
-                          width: 20,
-                          height: 20,
-                          fit: BoxFit.contain,
+                        Text(
+                          "Don't have an account? ",
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 14,
+                          ),
                         ),
-                        const SizedBox(width: 12),
-                        const Text('Continue with Google'),
+                        GestureDetector(
+                          onTap: isLoading
+                              ? null
+                              : () => _navigateToSignUp(context),
+                          child: Text(
+                            'Sign up',
+                            style: TextStyle(
+                              color: Colors.blue[700],
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 32),
+                    const SizedBox(height: 24),
 
-                // Sign up link
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account? ",
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          PageRouteBuilder(
-                            transitionDuration: const Duration(
-                              milliseconds: 400,
-                            ),
-                            pageBuilder: (_, __, ___) => const SignUpPage(),
-                            transitionsBuilder: (_, animation, __, child) {
-                              return FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              );
-                            },
+                    // Terms and privacy
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
                           ),
-                        );
-                      },
-                      child: Text(
-                        'Sign up',
-                        style: TextStyle(
-                          color: Colors.blue[700],
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                          children: [
+                            const TextSpan(
+                              text: 'By continuing, you agree to DevKazi\'s ',
+                            ),
+                            TextSpan(
+                              text: 'Terms of Service',
+                              style: TextStyle(
+                                color: Colors.blue[700],
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: TextStyle(
+                                color: Colors.blue[700],
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 40),
                   ],
                 ),
-
-                const SizedBox(height: 24),
-
-                // Terms and privacy - Minimal like Google
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                      children: [
-                        const TextSpan(
-                          text: 'By continuing, you agree to DevKazi\'s ',
-                        ),
-                        TextSpan(
-                          text: 'Terms of Service',
-                          style: TextStyle(
-                            color: Colors.blue[700],
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                        const TextSpan(text: ' and '),
-                        TextSpan(
-                          text: 'Privacy Policy',
-                          style: TextStyle(
-                            color: Colors.blue[700],
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<AuthCubit, AuthState>(
+      listener: (context, state) {
+        if (state is AuthAuthenticated) {
+          // Use a small delay to ensure UI updates complete before navigation
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/teams');
+            }
+          });
+        } else if (state is AuthError) {
+          if (mounted) {
+            _showError(state.message);
+          }
+        }
+      },
+      builder: (context, state) {
+        final isLoading = state is AuthLoading;
+        return _buildLoginForm(isLoading);
+      },
     );
   }
 }

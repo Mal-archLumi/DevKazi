@@ -1,17 +1,11 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateTeamDto } from './create-team.dto';
-import { IsArray, IsOptional, IsEnum } from 'class-validator';
-import { TeamStatus } from '../../teams/schemas/team.schema';
+import { IsOptional, IsString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateTeamDto extends PartialType(CreateTeamDto) {
+  @ApiPropertyOptional({ example: 'new-invite-code', description: 'New invite code' })
   @IsOptional()
-  @IsEnum(TeamStatus)
-  status?: TeamStatus;
-
-  @IsArray()
-  @IsOptional()
-  members?: Array<{
-    user: string;
-    role: string;
-  }>;
+  @IsString()
+  inviteCode?: string;
 }

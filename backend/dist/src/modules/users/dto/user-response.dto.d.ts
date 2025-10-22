@@ -1,35 +1,23 @@
-import { Role } from '../../../auth/enums/role.enum';
+import { Types } from 'mongoose';
 export declare class UserResponseDto {
-    _id: string;
+    _id: Types.ObjectId;
     email: string;
     name: string;
     skills: string[];
-    bio: string;
-    education: string;
-    avatar: string;
-    role: Role;
+    bio?: string;
+    education?: string;
+    avatar?: string;
     isVerified: boolean;
     isProfilePublic: boolean;
-    company: string;
-    position: string;
-    github: string;
-    linkedin: string;
-    portfolio: string;
-    experienceYears: number;
+    isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
 export declare class PublicUserResponseDto {
-    _id: string;
+    _id: Types.ObjectId;
     name: string;
-    role: Role;
-    bio: string;
     skills: string[];
-    avatar: string;
+    bio?: string;
+    avatar?: string;
     isVerified: boolean;
-    company: string;
-    position: string;
-    experienceYears: number;
-}
-export declare class PrivateUserResponseDto extends UserResponseDto {
 }

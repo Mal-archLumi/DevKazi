@@ -6,6 +6,8 @@ import { LoginDto } from './dto/login.dto';
 export declare class AuthService {
     private userModel;
     private jwtService;
+    private googleClient;
+    private readonly logger;
     constructor(userModel: Model<UserDocument>, jwtService: JwtService);
     register(registerDto: RegisterDto): Promise<{
         access_token: string;
@@ -13,6 +15,11 @@ export declare class AuthService {
         user: any;
     }>;
     login(loginDto: LoginDto): Promise<{
+        access_token: string;
+        refresh_token: string;
+        user: any;
+    }>;
+    googleLogin(idToken: string): Promise<{
         access_token: string;
         refresh_token: string;
         user: any;
@@ -29,9 +36,15 @@ export declare class AuthService {
     changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{
         message: string;
     }>;
+    forgotPassword(email: string): Promise<{
+        message: string;
+    }>;
+    resetPassword(token: string, newPassword: string): Promise<{
+        message: string;
+    }>;
     private generateTokens;
-    private getUserEmail;
     private sanitizeUser;
     private getUserId;
     private getUpdatedAt;
+    private parseExpiresIn;
 }

@@ -37,10 +37,8 @@ const core_1 = require("@nestjs/core");
 const app_module_1 = require("../src/app.module");
 const users_service_1 = require("../src/modules/users/users.service");
 const teams_service_1 = require("../src/modules/teams/teams.service");
-const posts_service_1 = require("../src/modules/posts/posts.service");
 const mongoose_1 = require("@nestjs/mongoose");
 const user_schema_1 = require("../src/modules/users/schemas/user.schema");
-const post_schema_1 = require("../src/modules/posts/schemas/post.schema");
 const team_schema_1 = require("../src/modules/teams/schemas/team.schema");
 const bcrypt = __importStar(require("bcryptjs"));
 async function bootstrap() {
@@ -49,13 +47,11 @@ async function bootstrap() {
     try {
         const userModel = app.get((0, mongoose_1.getModelToken)(user_schema_1.User.name));
         const teamModel = app.get((0, mongoose_1.getModelToken)(team_schema_1.Team.name));
-        const postModel = app.get((0, mongoose_1.getModelToken)(post_schema_1.Post.name));
         await new Promise(resolve => setTimeout(resolve, 2000));
         console.log('📝 Seeding sample data...');
         console.log('📝 Seeding sample data...');
         const usersService = app.get(users_service_1.UsersService);
         const teamsService = app.get(teams_service_1.TeamsService);
-        const postsService = app.get(posts_service_1.PostsService);
         const hashedPassword = await bcrypt.hash('password123', 12);
         const users = await userModel.insertMany([
             {
@@ -102,24 +98,6 @@ async function bootstrap() {
             }
         ]);
         console.log('✅ Sample teams created:', teams.map(t => t.name));
-        const posts = await postModel.insertMany([
-            {
-                title: 'Full-Stack Development Internship',
-                description: 'Join our team to build a real-world application from scratch',
-                team: teams[0]._id,
-                type: 'internship',
-                roles: [
-                    { role: 'Frontend Developer', slots: 2, skills: ['React', 'TypeScript'], filled: 1 },
-                    { role: 'Backend Developer', slots: 1, skills: ['Node.js', 'Express'], filled: 0 }
-                ],
-                requiredSkills: ['JavaScript', 'Git', 'REST APIs'],
-                duration: '8 weeks',
-                deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                status: 'active',
-                projectName: 'Task Management App'
-            }
-        ]);
-        console.log('✅ Sample posts created:', posts.map(p => p.title));
         console.log('🎉 Database seeding completed successfully!');
         console.log('📧 Test user emails: alice@student.com, bob@student.com');
         console.log('🔑 Password for all: password123');

@@ -1,17 +1,18 @@
-import { IsArray, IsString, ArrayNotEmpty, ArrayMinSize } from 'class-validator';
+import { IsArray, IsString, ArrayNotEmpty } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class AddSkillsDto {
+  @ApiProperty({ example: ['JavaScript', 'TypeScript'], description: 'Skills to add' })
   @IsArray()
   @ArrayNotEmpty()
-  @ArrayMinSize(1)
   @IsString({ each: true })
   skills: string[];
 }
 
 export class RemoveSkillsDto {
+  @ApiProperty({ example: ['Python'], description: 'Skills to remove' })
   @IsArray()
   @ArrayNotEmpty()
-  @ArrayMinSize(1)
   @IsString({ each: true })
   skills: string[];
 }

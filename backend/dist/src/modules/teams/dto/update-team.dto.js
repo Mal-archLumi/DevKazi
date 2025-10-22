@@ -13,20 +13,15 @@ exports.UpdateTeamDto = void 0;
 const mapped_types_1 = require("@nestjs/mapped-types");
 const create_team_dto_1 = require("./create-team.dto");
 const class_validator_1 = require("class-validator");
-const team_schema_1 = require("../../teams/schemas/team.schema");
+const swagger_1 = require("@nestjs/swagger");
 class UpdateTeamDto extends (0, mapped_types_1.PartialType)(create_team_dto_1.CreateTeamDto) {
-    status;
-    members;
+    inviteCode;
 }
 exports.UpdateTeamDto = UpdateTeamDto;
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'new-invite-code', description: 'New invite code' }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(team_schema_1.TeamStatus),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], UpdateTeamDto.prototype, "status", void 0);
-__decorate([
-    (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Array)
-], UpdateTeamDto.prototype, "members", void 0);
+], UpdateTeamDto.prototype, "inviteCode", void 0);
 //# sourceMappingURL=update-team.dto.js.map

@@ -1,5 +1,7 @@
 // lib/features/auth/data/repositories/auth_repository.impl.dart
 import 'dart:convert';
+// ignore: unused_import
+import 'dart:math';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -232,6 +234,9 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       print('🟡 Starting Google Sign-In flow...');
 
+      // Debug: Check what client ID we're using
+      print('🟡 Using Google Client ID: ${dotenv.env['GOOGLE_WEB_CLIENT_ID']}');
+
       final account = await _googleSignIn.signIn();
       if (account == null) {
         print('🔴 Google sign-in cancelled by user');
@@ -239,18 +244,33 @@ class AuthRepositoryImpl implements AuthRepository {
       }
 
       print('🟡 Google account selected: ${account.email}');
+      print('🟡 Account details: ${account.displayName}, ${account.id}');
 
       final auth = await account.authentication;
+      print(
+        '🟡 Google auth obtained - ID Token: ${auth.idToken != null ? "PRESENT" : "MISSING"}',
+      );
+      print(
+        '🟡 Access Token: ${auth.accessToken != null ? "PRESENT" : "MISSING"}',
+      );
+
       if (auth.idToken == null) {
         _logAuthError('loginWithGoogle', 'Failed to obtain Google ID token');
         return Left(ServerFailure('Failed to obtain Google ID token'));
       }
 
       print('🟡 Google ID token obtained, proceeding to backend...');
+      final idTokenLength = auth.idToken!.length;
+      final previewLength = idTokenLength < 50 ? idTokenLength : 50;
+      print(
+        '🟡 ID Token first $previewLength chars: ${auth.idToken!.substring(0, previewLength)}...',
+      );
 
       // Use the existing signUpWithGoogle method
       return await signUpWithGoogle(auth.idToken!);
     } catch (e) {
+      print('🔴 Google Sign-In Exception: $e');
+      print('🔴 Exception type: ${e.runtimeType}');
       _logAuthError('loginWithGoogle', e);
       return Left(ServerFailure('Google sign-in failed: ${e.toString()}'));
     }

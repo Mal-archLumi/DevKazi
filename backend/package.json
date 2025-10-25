@@ -75,22 +75,17 @@
   "resolutions": {
     "glob": "^10.4.5",
     "inflight": "^1.0.6",
-    "mailsplit": "^6.0.1"
+    "mailsplit": "^6.0.1",
+    "whatwg-url": "^8.7.0" 
   },
   "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
+    "moduleFileExtensions": ["js", "json", "ts"],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
+    "collectCoverageFrom": ["**/*.(t|j)s"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }

@@ -1,13 +1,15 @@
 // presentation/pages/teams_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:frontend/core/widgets/empty_state.dart';
+import 'package:frontend/core/widgets/error_state.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_state.dart';
 import '../blocs/teams/teams_cubit.dart';
 import '../widgets/team_card.dart';
 import '../widgets/teams_search_bar.dart';
-import '../../../core/widgets/loading_shimmer.dart';
-import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/error_state.dart';
+import '../../../../core/widgets/loading_shimmer.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/error_state.dart';
 
 class TeamsListPage extends StatefulWidget {
   const TeamsListPage({super.key});

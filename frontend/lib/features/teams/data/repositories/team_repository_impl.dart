@@ -2,10 +2,11 @@
 import 'package:dartz/dartz.dart';
 import '../../domain/entities/team_entity.dart';
 import '../../domain/repositories/team_repository.dart';
-import '../datasources/remote/team_remote_data_source.dart';
-import '../datasources/local/team_local_data_source.dart';
-import '../../core/errors/failures.dart';
-import '../../core/network/network_info.dart';
+import '../data_sources/remote/team_remote_data_source.dart';
+import '../data_sources/local/team_local_data_source.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../../../core/network/network_info.dart';
 
 class TeamRepositoryImpl implements TeamRepository {
   final TeamRemoteDataSource remoteDataSource;
@@ -29,10 +30,12 @@ class TeamRepositoryImpl implements TeamRepository {
         final localTeams = await localDataSource.getCachedTeams();
         return Right(localTeams);
       }
-    } on ServerException {
-      return Left(ServerFailure());
-    } on CacheException {
-      return Left(CacheFailure());
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error: $e'));
     }
   }
 
@@ -41,8 +44,10 @@ class TeamRepositoryImpl implements TeamRepository {
     try {
       final teams = await remoteDataSource.searchTeams(query);
       return Right(teams);
-    } on ServerException {
-      return Left(ServerFailure());
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error: $e'));
     }
   }
 
@@ -51,8 +56,10 @@ class TeamRepositoryImpl implements TeamRepository {
     try {
       await remoteDataSource.createTeam(name, logoUrl);
       return const Right(null);
-    } on ServerException {
-      return Left(ServerFailure());
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error: $e'));
     }
   }
 }

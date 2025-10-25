@@ -20,12 +20,9 @@ class TeamCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // Team Avatar
               _buildTeamAvatar(context),
               const SizedBox(width: 16),
-              // Team Info
               Expanded(child: _buildTeamInfo(context)),
-              // Member Count & Arrow
               _buildTeamMeta(context),
             ],
           ),
@@ -78,7 +75,9 @@ class TeamCard extends StatelessWidget {
         Text(
           'Created ${_formatDate(team.createdAt)}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       ],
@@ -98,7 +97,9 @@ class TeamCard extends StatelessWidget {
         Text(
           'members',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
         const SizedBox(height: 8),

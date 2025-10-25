@@ -6,7 +6,7 @@
     "rootDir": "./src",
     "baseUrl": "./",
     "sourceMap": true,
-    "declaration": false, // Set to false to avoid .d.ts files cluttering dist/
+    "declaration": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
@@ -19,8 +19,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "moduleResolution": "node",
-    "allowJs": false // Ensure only .ts files are compiled
+    "allowJs": false
   },
-  "include": ["src/**/*.ts"], // Explicitly include all .ts files in src/
-  "exclude": ["node_modules", "dist", "test"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "src/**/*.spec.ts"] // Exclude spec files
 }

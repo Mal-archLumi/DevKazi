@@ -1,9 +1,9 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MailerModule } from '@nestjs-modules/mailer';
 
 // Import modules
 import { AuthModule } from './auth/auth.module';
@@ -63,29 +63,6 @@ import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
       minPoolSize: 5,
       retryAttempts: 3,
       retryDelay: 1000,
-    }),
-    
-    // Mailer configuration
-    MailerModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        transport: {
-          host: config.get<string>('SMTP_HOST'),
-          port: config.get<number>('SMTP_PORT') || 587,
-          secure: config.get<number>('SMTP_PORT') === 465,
-          auth: {
-            user: config.get<string>('SMTP_USER'),
-            pass: config.get<string>('SMTP_PASS'),
-          },
-          tls: {
-            rejectUnauthorized: config.get<string>('NODE_ENV') === 'production',
-          },
-        },
-        defaults: {
-          from: config.get<string>('MAIL_FROM') || '"DevKazi" <no-reply@devkazi.com>',
-        },
-      }),
     }),
     
     // Feature modules

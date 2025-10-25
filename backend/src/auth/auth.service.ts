@@ -1,12 +1,14 @@
-// auth.service.ts - Fixed login method
+// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../modules/users/schemas/user.schema';
 import * as bcryptjs from 'bcryptjs';
+import * as nodemailer from 'nodemailer'; // Added for email sending
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ConfigService } from '@nestjs/config'; // Added for SMTP config
 import { OAuth2Client } from 'google-auth-library';
 
 @Injectable()
@@ -17,6 +19,7 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
+    private configService: ConfigService, // Added for nodemailer
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_WEB_CLIENT_ID);
   }
@@ -88,12 +91,12 @@ export class AuthService {
       throw new UnauthorizedException('Account is deactivated. Please contact support.');
     }
 
-    // ✅ FIX: Check if user has a password (Google users don't have passwords)
+    // Check if user has a password (Google users don't have passwords)
     if (!user.password) {
       throw new UnauthorizedException('Please use Google Sign-In for this account');
     }
 
-    // ✅ FIX: Now TypeScript knows user.password is defined
+    // Verify password
     const isPasswordValid = await bcryptjs.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -148,7 +151,7 @@ export class AuthService {
         throw new UnauthorizedException('Email not provided by Google');
       }
 
-      // ✅ Handle missing name from Google - IMPROVED
+      // Handle missing name from Google
       const userName = name || given_name || family_name || email.split('@')[0] || 'Google User';
       
       this.logger.log(`Processing user: ${email}, name: ${userName}`);
@@ -165,11 +168,11 @@ export class AuthService {
           // Link Google ID to existing user
           user.googleId = googleId;
           user.picture = picture || user.picture;
-          user.name = userName; // Use the improved name handling
+          user.name = userName;
           await user.save();
         } else {
           this.logger.log(`Creating new user for Google login: ${email}`);
-          // Create new user - ✅ Google users don't get passwords
+          // Create new user - Google users don't get passwords
           user = await this.userModel.create({
             googleId,
             email: email.toLowerCase(),
@@ -178,7 +181,6 @@ export class AuthService {
             isVerified: true,
             isActive: true,
             skills: [],
-            // No password field for Google users
           });
         }
       } else {
@@ -235,7 +237,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // Check if user needs to re-authenticate (e.g., after password change)
+      // Check if user needs to re-authenticate
       const tokenIssuedAt = payload.iat * 1000;
       const userUpdatedAt = this.getUpdatedAt(user);
       if (userUpdatedAt && userUpdatedAt.getTime() > tokenIssuedAt) {
@@ -295,7 +297,7 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    // ✅ FIX: Check if user has a password before trying to change it
+    // Check if user has a password
     if (!user.password) {
       throw new UnauthorizedException('Google users cannot change password. Please set a password first.');
     }
@@ -328,20 +330,82 @@ export class AuthService {
       throw new BadRequestException('User with this email does not exist');
     }
 
-    // ✅ FIX: Check if user has a password before allowing password reset
+    // Check if user has a password
     if (!user.password) {
       throw new BadRequestException('Google users cannot reset password. Please use Google Sign-In.');
     }
 
-    // TODO: Implement email sending logic (e.g., using @nestjs-modules/mailer)
-    // Generate reset token, save to DB, send email with link
+    // Generate reset token
+    const userId = this.getUserId(user);
+    const resetToken = await this.jwtService.signAsync(
+      { sub: userId, type: 'reset' },
+      { secret: process.env.JWT_SECRET || 'fallback-secret', expiresIn: '1h' }
+    );
+
+    // Send email with nodemailer
+    const transporter = nodemailer.createTransport({
+      host: this.configService.get<string>('SMTP_HOST'),
+      port: this.configService.get<number>('SMTP_PORT') || 587,
+      secure: this.configService.get<number>('SMTP_PORT') === 465,
+      auth: {
+        user: this.configService.get<string>('SMTP_USER'),
+        pass: this.configService.get<string>('SMTP_PASS'),
+      },
+    });
+
+    const mailOptions = {
+      from: this.configService.get<string>('MAIL_FROM') || '"DevKazi" <no-reply@devkazi.com>',
+      to: email,
+      subject: 'Password Reset Request',
+      text: `Click this link to reset your password: ${this.configService.get<string>('FRONTEND_URL')}/reset-password?token=${resetToken}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
     return { message: 'Password reset link sent to your email' };
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    // TODO: Implement token verification and password reset logic
-    // Make sure to check if the user has a password before resetting
-    throw new Error('Method not implemented.');
+    if (!token || !newPassword) {
+      throw new BadRequestException('Token and new password are required');
+    }
+
+    try {
+      // Verify reset token
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.JWT_SECRET || 'fallback-secret',
+      });
+
+      if (payload.type !== 'reset') {
+        throw new UnauthorizedException('Invalid reset token');
+      }
+
+      const user = await this.userModel.findById(payload.sub);
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      // Check if user has a password
+      if (!user.password) {
+        throw new BadRequestException('Google users cannot reset password. Please use Google Sign-In.');
+      }
+
+      // Hash new password
+      const hashedPassword = await bcryptjs.hash(newPassword, 12);
+
+      // Update password
+      await this.userModel.findByIdAndUpdate(payload.sub, {
+        password: hashedPassword,
+        updatedAt: new Date(),
+      });
+
+      return { message: 'Password reset successfully' };
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Reset token expired');
+      }
+      throw new UnauthorizedException('Invalid reset token');
+    }
   }
 
   private async generateTokens(userId: string): Promise<{
@@ -371,7 +435,6 @@ export class AuthService {
     return userWithoutPassword;
   }
 
-  // Safe method to get user ID
   private getUserId(user: UserDocument): string {
     const userObj = user as any;
     if (userObj._id && userObj._id.toString) {
@@ -383,7 +446,6 @@ export class AuthService {
     throw new Error('Unable to get user ID');
   }
 
-  // Safe method to get updatedAt
   private getUpdatedAt(user: UserDocument): Date | null {
     const userObj = user as any;
     return userObj.updatedAt || null;

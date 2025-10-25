@@ -52,7 +52,7 @@ const jwt_1 = require("@nestjs/jwt");
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const user_schema_1 = require("../modules/users/schemas/user.schema");
-const bcrypt = __importStar(require("bcrypt"));
+const bcryptjs = __importStar(require("bcryptjs"));
 const google_auth_library_1 = require("google-auth-library");
 let AuthService = AuthService_1 = class AuthService {
     userModel;
@@ -73,7 +73,7 @@ let AuthService = AuthService_1 = class AuthService {
         if (existingUser) {
             throw new common_1.ConflictException('User with this email already exists');
         }
-        const hashedPassword = await bcrypt.hash(password, 12);
+        const hashedPassword = await bcryptjs.hash(password, 12);
         const user = await this.userModel.create({
             email: email.toLowerCase(),
             password: hashedPassword,
@@ -105,7 +105,7 @@ let AuthService = AuthService_1 = class AuthService {
         if (!user.password) {
             throw new common_1.UnauthorizedException('Please use Google Sign-In for this account');
         }
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await bcryptjs.compare(password, user.password);
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
@@ -257,11 +257,11 @@ let AuthService = AuthService_1 = class AuthService {
         if (!user.password) {
             throw new common_1.UnauthorizedException('Google users cannot change password. Please set a password first.');
         }
-        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        const isCurrentPasswordValid = await bcryptjs.compare(currentPassword, user.password);
         if (!isCurrentPasswordValid) {
             throw new common_1.UnauthorizedException('Current password is incorrect');
         }
-        const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+        const hashedNewPassword = await bcryptjs.hash(newPassword, 12);
         await this.userModel.findByIdAndUpdate(userId, {
             password: hashedNewPassword,
             updatedAt: new Date(),

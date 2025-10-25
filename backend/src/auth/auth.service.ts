@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../modules/users/schemas/user.schema';
-import * as bcrypt from 'bcrypt';
+import * as bcryptjs from 'bcryptjs';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { OAuth2Client } from 'google-auth-library';
@@ -40,7 +40,7 @@ export class AuthService {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcryptjs.hash(password, 12);
 
     // Create user - no roles, simplified fields
     const user = await this.userModel.create({
@@ -94,7 +94,7 @@ export class AuthService {
     }
 
     // ✅ FIX: Now TypeScript knows user.password is defined
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcryptjs.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -301,13 +301,13 @@ export class AuthService {
     }
 
     // Verify current password
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    const isCurrentPasswordValid = await bcryptjs.compare(currentPassword, user.password);
     if (!isCurrentPasswordValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
     // Hash new password
-    const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+    const hashedNewPassword = await bcryptjs.hash(newPassword, 12);
 
     // Update password
     await this.userModel.findByIdAndUpdate(userId, {

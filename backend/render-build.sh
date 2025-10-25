@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
-rm -rf dist/  # Clean old build artifacts
-npm install --legacy-peer-deps  # Install dependencies
-npm run build  # Run 'tsc' to generate dist/main.js
+rm -rf dist/ node_modules/ package-lock.json  # Clean everything
+npm cache clean --force  # Clear npm cache
+npm install --legacy-peer-deps  # Fresh install
+npm run build  # Run 'tsc'

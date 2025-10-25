@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Request, Response } from 'express'; // Added for favicon handling
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -25,9 +26,18 @@ async function bootstrap() {
     }
   });
 
+  // Handle favicon.ico requests
+  app.use((req: Request, res: Response, next) => {
+    if (req.originalUrl === '/favicon.ico') {
+      res.status(204).end(); // Return empty response to suppress 404
+    } else {
+      next();
+    }
+  });
+
   // Security middleware
   app.use(helmet());
-  
+
   // CORS configuration
   app.enableCors({
     origin: [frontendUrl, 'http://localhost:3000'],

@@ -46,7 +46,8 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "whatwg-url": "^8.7.0" 
   },
   "devDependencies": {
     "@eslint/config-array": "^0.18.0",
@@ -75,8 +76,7 @@
   "resolutions": {
     "glob": "^10.4.5",
     "inflight": "^1.0.6",
-    "mailsplit": "^6.0.1",
-    "whatwg-url": "^8.7.0" 
+    "mailsplit": "^6.0.1"
   },
   "jest": {
     "moduleFileExtensions": ["js", "json", "ts"],

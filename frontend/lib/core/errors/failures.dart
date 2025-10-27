@@ -8,7 +8,7 @@ abstract class Failure {
 }
 
 class ServerFailure extends Failure {
-  ServerFailure([String message = 'Server error occurred']) : super(message);
+  ServerFailure([super.message = 'Server error occurred']);
 
   factory ServerFailure.fromException(ServerException exception) {
     return ServerFailure(exception.message);
@@ -16,7 +16,7 @@ class ServerFailure extends Failure {
 }
 
 class CacheFailure extends Failure {
-  CacheFailure([String message = 'Cache error occurred']) : super(message);
+  CacheFailure([super.message = 'Cache error occurred']);
 
   factory CacheFailure.fromException(CacheException exception) {
     return CacheFailure(exception.message);
@@ -24,5 +24,5 @@ class CacheFailure extends Failure {
 }
 
 class NetworkFailure extends Failure {
-  NetworkFailure([String message = 'Network error occurred']) : super(message);
+  NetworkFailure([super.message = 'Network error occurred']);
 }

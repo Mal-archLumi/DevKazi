@@ -1,6 +1,8 @@
+// splash_page.dart
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/route_constants.dart';
-import 'package:frontend/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:frontend/core/injection_container.dart'; // Add this import
+import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -17,8 +19,10 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _initializeApp() async {
+    // Use dependency injection to get auth repository
+    final authRepository = getIt<AuthRepository>();
+
     // Check if user is already authenticated
-    final authRepository = AuthRepositoryImpl();
     final accessToken = await authRepository.getAccessToken();
 
     await Future.delayed(const Duration(seconds: 2));

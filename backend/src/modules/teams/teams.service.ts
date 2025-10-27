@@ -1,3 +1,4 @@
+// teams.service.ts
 import { 
   Injectable, 
   NotFoundException, 
@@ -13,6 +14,14 @@ import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
+
+interface TeamResponse {
+  id: string;
+  name: string;
+  memberCount: number;
+  createdAt: Date;
+  lastActivity: Date;
+}
 
 @Injectable()
 export class TeamsService {
@@ -253,13 +262,17 @@ export class TeamsService {
         throw new BadRequestException('User is already a team member');
       }
 
-      // Update last activity
+      // Add user to members
+      team.members.push({
+        user: new Types.ObjectId(targetUserId),
+        joinedAt: new Date(),
+      });
+
       team.lastActivity = new Date();
       const updatedTeam = await team.save();
       
       this.logger.log(`Member invited to team ${teamId}: ${targetUserId} by user: ${inviterId}`);
       
-      // In a real app, you'd send an email notification here
       return updatedTeam;
     } catch (error) {
       this.logger.error(`Failed to invite member to team ${teamId}: ${error.message}`);
@@ -348,7 +361,7 @@ export class TeamsService {
     }
   }
 
-  async getUserTeams(userId: string): Promise<Team[]> {
+  async getUserTeams(userId: string): Promise<TeamResponse[]> {
     try {
       if (!Types.ObjectId.isValid(userId)) {
         throw new BadRequestException('Invalid user ID');
@@ -358,12 +371,16 @@ export class TeamsService {
         .find({
           'members.user': new Types.ObjectId(userId),
         })
-        .populate('owner', 'name email')
-        .populate('members.user', 'name email')
         .sort({ lastActivity: -1 })
         .exec();
 
-      return teams as Team[];
+      return teams.map(team => ({
+        id: team._id.toString(),
+        name: team.name,
+        memberCount: team.members.length,
+        createdAt: team.createdAt,
+        lastActivity: team.lastActivity,
+      }));
     } catch (error) {
       this.logger.error(`Failed to fetch user teams for ${userId}: ${error.message}`);
       if (error instanceof BadRequestException) {

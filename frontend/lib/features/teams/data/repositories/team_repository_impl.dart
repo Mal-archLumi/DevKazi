@@ -28,7 +28,10 @@ class TeamRepositoryImpl implements TeamRepository {
         return Right(remoteTeams);
       } else {
         final localTeams = await localDataSource.getCachedTeams();
-        return Right(localTeams);
+        if (localTeams.isNotEmpty) {
+          return Right(localTeams);
+        }
+        return Left(CacheFailure('No internet connection and no cached data'));
       }
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
@@ -42,8 +45,12 @@ class TeamRepositoryImpl implements TeamRepository {
   @override
   Future<Either<Failure, List<TeamEntity>>> searchTeams(String query) async {
     try {
-      final teams = await remoteDataSource.searchTeams(query);
-      return Right(teams);
+      if (await networkInfo.isConnected) {
+        final teams = await remoteDataSource.searchTeams(query);
+        return Right(teams);
+      } else {
+        return Left(CacheFailure('No internet connection'));
+      }
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
     } catch (e) {
@@ -54,8 +61,12 @@ class TeamRepositoryImpl implements TeamRepository {
   @override
   Future<Either<Failure, void>> createTeam(String name, String? logoUrl) async {
     try {
-      await remoteDataSource.createTeam(name, logoUrl);
-      return const Right(null);
+      if (await networkInfo.isConnected) {
+        await remoteDataSource.createTeam(name, logoUrl);
+        return const Right(null);
+      } else {
+        return Left(CacheFailure('No internet connection'));
+      }
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
     } catch (e) {

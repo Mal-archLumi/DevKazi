@@ -139,8 +139,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage>
   }
 
   Widget _buildMessageWidget() {
-    if (_errorMessage == null && _successMessage == null)
+    if (_errorMessage == null && _successMessage == null) {
       return const SizedBox.shrink();
+    }
 
     final isError = _errorMessage != null;
     final message = isError ? _errorMessage : _successMessage;

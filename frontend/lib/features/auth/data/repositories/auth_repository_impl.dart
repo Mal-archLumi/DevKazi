@@ -20,7 +20,7 @@ class AuthRepositoryImpl implements AuthRepository {
   final FlutterSecureStorage _secureStorage;
   final GoogleSignIn _googleSignIn;
 
-  AuthRepositoryImpl()
+  AuthRepositoryImpl({required FlutterSecureStorage secureStorage})
     : _secureStorage = const FlutterSecureStorage(),
       _googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],

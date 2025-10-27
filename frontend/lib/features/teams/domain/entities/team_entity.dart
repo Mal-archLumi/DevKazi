@@ -18,6 +18,24 @@ class TeamEntity extends Equatable {
     required this.createdAt,
   });
 
+  TeamEntity copyWith({
+    String? id,
+    String? name,
+    String? logoUrl,
+    String? initial,
+    int? memberCount,
+    DateTime? createdAt,
+  }) {
+    return TeamEntity(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      logoUrl: logoUrl ?? this.logoUrl,
+      initial: initial ?? this.initial,
+      memberCount: memberCount ?? this.memberCount,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

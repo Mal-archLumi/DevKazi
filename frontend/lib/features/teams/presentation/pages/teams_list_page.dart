@@ -1,15 +1,11 @@
-// presentation/pages/teams_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/core/widgets/empty_state.dart';
 import 'package:frontend/core/widgets/error_state.dart';
+import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_state.dart';
-import '../blocs/teams/teams_cubit.dart';
 import '../widgets/team_card.dart';
-import '../widgets/teams_search_bar.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
-import '../../../../core/widgets/empty_state.dart';
-import '../../../../core/widgets/error_state.dart';
 
 class TeamsListPage extends StatefulWidget {
   const TeamsListPage({super.key});
@@ -20,21 +16,62 @@ class TeamsListPage extends StatefulWidget {
 
 class _TeamsListPageState extends State<TeamsListPage> {
   int _currentIndex = 0;
-  bool _showSearchBar = false;
 
-  final List<Widget> _pages = [
+  List<Widget> get _pages => [
     const TeamsListContent(),
-    const Placeholder(), // NotificationsPage(),
-    const Placeholder(), // ProfilePage(),
+    Container(
+      alignment: Alignment.center,
+      child: const Text('Notifications Page'),
+    ),
+    Container(alignment: Alignment.center, child: const Text('Profile Page')),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      body: _pages[_currentIndex],
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          const swipeThreshold = 300.0;
+
+          if (velocity.abs() < swipeThreshold) return;
+
+          setState(() {
+            if (velocity > 0 && _currentIndex > 0) {
+              _currentIndex--;
+            } else if (velocity < 0 && _currentIndex < _pages.length - 1) {
+              _currentIndex++;
+            }
+          });
+        },
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(0.1, 0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeInOut,
+                      ),
+                    ),
+                child: child,
+              ),
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey<int>(_currentIndex),
+            child: _pages[_currentIndex],
+          ),
+        ),
+      ),
       bottomNavigationBar: _buildBottomNavigationBar(),
-      floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
@@ -42,91 +79,129 @@ class _TeamsListPageState extends State<TeamsListPage> {
     if (_currentIndex != 0) return null;
 
     return AppBar(
-      title: _showSearchBar
-          ? null
-          : const Text(
-              'My Teams',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-      actions: [
-        if (!_showSearchBar)
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => setState(() => _showSearchBar = true),
-          ),
-        if (!_showSearchBar)
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => _navigateToNotifications(),
-          ),
-      ],
-      bottom: _showSearchBar
-          ? PreferredSize(
-              preferredSize: const Size.fromHeight(80),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: TeamsSearchBar(
-                  onSearchChanged: (query) {
-                    context.read<TeamsCubit>().searchTeams(query);
-                  },
-                  onSearchClosed: () => setState(() => _showSearchBar = false),
-                ),
+      title: Row(
+        children: [
+          Image.asset("assets/images/logos/devkazi.png", height: 36),
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [Colors.green, Colors.blue, Colors.orange],
+            ).createShader(bounds),
+            child: const Text(
+              'DevKazi',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-            )
-          : null,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 10),
+          key: const ValueKey(Size(24, 24)),
+          child: IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: _navigateToNotifications,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      currentIndex: _currentIndex,
-      onTap: (index) => setState(() => _currentIndex = index),
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      selectedItemColor: Theme.of(context).colorScheme.primary,
-      unselectedItemColor: Theme.of(
-        context,
-      ).colorScheme.onSurface.withOpacity(0.6),
-      selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Home',
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.6),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.notifications_outlined),
-          activeIcon: Icon(Icons.notifications),
-          label: 'Alerts',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
+        unselectedLabelStyle: const TextStyle(fontSize: 12),
+        elevation: 8,
+        items: [
+          BottomNavigationBarItem(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: _currentIndex == 0
+                  ? BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    )
+                  : null,
+              child: Icon(
+                _currentIndex == 0 ? Icons.group_rounded : Icons.group_outlined,
+                size: 24,
+              ),
+            ),
+            label: 'Teams',
+          ),
+          BottomNavigationBarItem(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: _currentIndex == 1
+                  ? BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    )
+                  : null,
+              child: Icon(
+                _currentIndex == 1
+                    ? Icons.add_circle_rounded
+                    : Icons.add_circle_outline_rounded,
+                size: 24,
+              ),
+            ),
+            label: 'Create',
+          ),
+          BottomNavigationBarItem(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: _currentIndex == 2
+                  ? BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    )
+                  : null,
+              child: Icon(
+                _currentIndex == 2
+                    ? Icons.person_rounded
+                    : Icons.person_outlined,
+                size: 24,
+              ),
+            ),
+            label: 'Profile',
+          ),
+        ],
+      ),
     );
   }
 
-  Widget? _buildFloatingActionButton() {
-    if (_currentIndex == 0 && !_showSearchBar) {
-      return FloatingActionButton(
-        onPressed: _navigateToCreateTeam,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        child: const Icon(Icons.add),
-      );
-    }
-    return null;
-  }
-
-  void _navigateToCreateTeam() {
-    // TODO: Navigate to create team page
-    // context.push('/teams/create');
-  }
-
   void _navigateToNotifications() {
-    // TODO: Navigate to notifications
+    setState(() => _currentIndex = 1);
   }
 }
 
@@ -138,69 +213,158 @@ class TeamsListContent extends StatefulWidget {
 }
 
 class _TeamsListContentState extends State<TeamsListContent> {
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
-    // Load teams when the page initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TeamsCubit>().loadUserTeams();
     });
+
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text;
+    context.read<TeamsCubit>().searchTeams(query);
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<TeamsCubit, TeamsState>(
       builder: (context, state) {
-        return RefreshIndicator(
+        return RefreshIndicator.adaptive(
           onRefresh: () => context.read<TeamsCubit>().loadUserTeams(),
-          child: _buildContent(state),
-        );
-      },
-    );
-  }
-
-  Widget _buildContent(TeamsState state) {
-    if (state.status == TeamsStatus.loading) {
-      return const TeamsLoadingShimmer();
-    }
-
-    if (state.status == TeamsStatus.error) {
-      return ErrorState(
-        message: state.errorMessage,
-        onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
-      );
-    }
-
-    final teamsToShow = state.isSearching ? state.filteredTeams : state.teams;
-
-    if (teamsToShow.isEmpty) {
-      return EmptyState(
-        title: state.isSearching ? 'No teams found' : 'No teams yet',
-        message: state.isSearching
-            ? 'Try searching with different keywords'
-            : 'Create your first team to get started',
-        icon: state.isSearching ? Icons.search_off : Icons.group_add,
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: teamsToShow.length,
-      itemBuilder: (context, index) {
-        final team = teamsToShow[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: TeamCard(
-            team: team,
-            onTap: () => _navigateToTeamDetails(team.id),
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // Always visible search bar
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildSearchBar(),
+                ),
+              ),
+              _buildContent(state),
+            ],
           ),
         );
       },
     );
   }
 
+  Widget _buildSearchBar() {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.green.shade400, width: 1.5),
+      ),
+      child: TextField(
+        controller: _searchController,
+        style: TextStyle(color: Colors.green.shade700, fontSize: 15),
+        decoration: InputDecoration(
+          hintText: 'Search teams...',
+          hintStyle: TextStyle(color: Colors.green.shade700, fontSize: 15),
+          prefixIcon: _searchController.text.isEmpty
+              ? Icon(Icons.search, color: Colors.green.shade700, size: 22)
+              : null,
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.green.withValues(alpha: 0.6),
+                    size: 20,
+                  ),
+                  onPressed: _clearSearch,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                )
+              : null,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 10,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(TeamsState state) {
+    if (state.status == TeamsStatus.loading) {
+      return const SliverFillRemaining(child: TeamsLoadingShimmer());
+    }
+
+    if (state.status == TeamsStatus.error) {
+      return SliverFillRemaining(
+        child: ErrorState(
+          message: state.errorMessage,
+          onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
+        ),
+      );
+    }
+
+    final teamsToShow = state.isSearching ? state.filteredTeams : state.teams;
+
+    if (teamsToShow.isEmpty) {
+      return SliverFillRemaining(
+        child: EmptyState(
+          title: state.isSearching ? 'No teams found' : 'No teams yet',
+          message: state.isSearching
+              ? 'Try searching with different keywords'
+              : 'Create your first team to get started',
+          icon: state.isSearching
+              ? Icons.search_off_rounded
+              : Icons.group_add_rounded,
+          actionText: state.isSearching ? null : 'Create Team',
+          onAction: state.isSearching ? null : _navigateToCreateTeam,
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final team = teamsToShow[index];
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            index == teamsToShow.length - 1 ? 24 : 8,
+          ),
+          child: TeamCard(
+            team: team,
+            onTap: () => _navigateToTeamDetails(team.id),
+          ),
+        );
+      }, childCount: teamsToShow.length),
+    );
+  }
+
   void _navigateToTeamDetails(String teamId) {
-    // TODO: Navigate to team details
-    // context.push('/teams/$teamId');
+    // Navigate to team details page
+  }
+
+  void _navigateToCreateTeam() {
+    // Navigate to create team page
   }
 }

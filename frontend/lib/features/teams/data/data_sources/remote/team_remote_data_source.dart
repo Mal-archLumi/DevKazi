@@ -1,67 +1,100 @@
 // data/datasources/remote/team_remote_data_source.dart
+import 'dart:developer';
 import '../../../domain/entities/team_entity.dart';
 import '../../models/team_model.dart';
+import '/../../core/errors/exceptions.dart';
+import '/../../core/network/api_client.dart';
 
 abstract class TeamRemoteDataSource {
   Future<List<TeamEntity>> getUserTeams();
   Future<List<TeamEntity>> searchTeams(String query);
-  Future<void> createTeam(String name, String? logoUrl);
+  Future<void> createTeam(String name, String? description);
 }
 
 class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
-  // TODO: Add your HTTP client (Dio, http, etc.)
-  // final HttpClient client;
+  final ApiClient client;
 
-  // TeamRemoteDataSourceImpl({required this.client});
+  TeamRemoteDataSourceImpl({required this.client});
 
   @override
   Future<List<TeamEntity>> getUserTeams() async {
-    // TODO: Implement actual API call
-    await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
+    try {
+      final response = await client.get<List<dynamic>>(
+        '/teams/my-teams',
+        requiresAuth: true,
+      );
 
-    // Mock data for now
-    return [
-      TeamModel(
-        id: '1',
-        name: 'Google Team',
-        logoUrl: null,
-        initial: 'G',
-        memberCount: 5,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      TeamModel(
-        id: '2',
-        name: 'Design Squad',
-        logoUrl: null,
-        initial: 'D',
-        memberCount: 3,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      ),
-      TeamModel(
-        id: '3',
-        name: 'Dev Masters',
-        logoUrl: null,
-        initial: 'D',
-        memberCount: 8,
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-      ),
-    ];
+      if (response.isSuccess && response.data != null) {
+        return response.data!
+            .map(
+              (teamJson) =>
+                  TeamModel.fromJson(teamJson as Map<String, dynamic>),
+            )
+            .toList();
+      } else {
+        log(
+          'Failed to load teams: ${response.statusCode} - ${response.message}',
+        );
+        throw ServerException(
+          response.message ?? 'Failed to load teams: ${response.statusCode}',
+        );
+      }
+    } on ServerException {
+      rethrow;
+    } catch (e) {
+      log('Network error in getUserTeams: $e');
+      throw ServerException('Network error: $e');
+    }
   }
 
   @override
   Future<List<TeamEntity>> searchTeams(String query) async {
-    // TODO: Implement actual search API call
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final response = await client.get<List<dynamic>>(
+        '/teams/search',
+        queryParameters: {'q': query},
+        requiresAuth: true,
+      );
 
-    final allTeams = await getUserTeams();
-    return allTeams
-        .where((team) => team.name.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+      if (response.isSuccess && response.data != null) {
+        return response.data!
+            .map(
+              (teamJson) =>
+                  TeamModel.fromJson(teamJson as Map<String, dynamic>),
+            )
+            .toList();
+      } else {
+        throw ServerException(
+          response.message ?? 'Failed to search teams: ${response.statusCode}',
+        );
+      }
+    } on ServerException {
+      rethrow;
+    } catch (e) {
+      log('Network error in searchTeams: $e');
+      throw ServerException('Network error: $e');
+    }
   }
 
   @override
-  Future<void> createTeam(String name, String? logoUrl) async {
-    // TODO: Implement actual create team API call
-    await Future.delayed(const Duration(seconds: 1));
+  Future<void> createTeam(String name, String? description) async {
+    try {
+      final response = await client.post(
+        '/teams',
+        data: {'name': name, 'description': description},
+        requiresAuth: true,
+      );
+
+      if (!response.isSuccess) {
+        throw ServerException(
+          response.message ?? 'Failed to create team: ${response.statusCode}',
+        );
+      }
+    } on ServerException {
+      rethrow;
+    } catch (e) {
+      log('Network error in createTeam: $e');
+      throw ServerException('Network error: $e');
+    }
   }
 }

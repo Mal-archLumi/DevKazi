@@ -7,10 +7,11 @@ import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express'; // Added for favicon handling
+import { NestExpressApplication } from '@nestjs/platform-express'; // Ensure we use the Express platform
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule, { logger });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger });
 
   // Config service
   const configService = app.get(ConfigService);

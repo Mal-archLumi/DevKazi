@@ -44,7 +44,7 @@ Future<void> initDependencies() async {
   getIt.registerLazySingleton<ApiClient>(
     () => ApiClient(
       baseUrl:
-          'http://192.168.1.103:3001/api/v1', // Use your actual backend URL
+          'https://fattiest-ebony-supplely.ngrok-free.dev/api/v1', // Use your actual backend URL
     ),
   );
 

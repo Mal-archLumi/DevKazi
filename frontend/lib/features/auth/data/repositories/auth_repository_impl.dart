@@ -1,4 +1,4 @@
-// lib/features/auth/data/repositories/auth_repository.impl.dart
+// lib/features/auth/data/repositories/auth_repository_impl.dart
 import 'dart:convert';
 // ignore: unused_import
 import 'dart:math';
@@ -363,10 +363,20 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> saveTokens(String accessToken, String refreshToken) async {
-    print('🟡 Saving tokens...');
+    print('🟡 AuthRepositoryImpl: Saving tokens...');
+    print('🟡 Access Token: ${accessToken.substring(0, 20)}...');
+    print('🟡 Refresh Token: ${refreshToken.substring(0, 20)}...');
+
     await _secureStorage.write(key: _accessTokenKey, value: accessToken);
     await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
-    print('🟢 Tokens saved successfully');
+
+    // Verify tokens were saved
+    final savedAccessToken = await _secureStorage.read(key: _accessTokenKey);
+    final savedRefreshToken = await _secureStorage.read(key: _refreshTokenKey);
+
+    print('🟢 AuthRepositoryImpl: Tokens saved successfully');
+    print('🟢 Saved Access Token exists: ${savedAccessToken != null}');
+    print('🟢 Saved Refresh Token exists: ${savedRefreshToken != null}');
   }
 
   Future<void> _saveUserId(String userId) async {
@@ -376,7 +386,16 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<String?> getAccessToken() async {
-    return await _secureStorage.read(key: _accessTokenKey);
+    final token = await _secureStorage.read(key: _accessTokenKey);
+    print(
+      '🟡 AuthRepositoryImpl: Retrieved access token - exists: ${token != null}',
+    );
+    if (token != null) {
+      print(
+        '🟡 Token preview: ${token.substring(0, min(20, token.length))}...',
+      );
+    }
+    return token;
   }
 
   @override

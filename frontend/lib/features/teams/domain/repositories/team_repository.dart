@@ -6,5 +6,5 @@ import '/../core/errors/failures.dart';
 abstract class TeamRepository {
   Future<Either<Failure, List<TeamEntity>>> getUserTeams();
   Future<Either<Failure, List<TeamEntity>>> searchTeams(String query);
-  Future<Either<Failure, void>> createTeam(String name, String? logoUrl);
+  Future<Either<Failure, void>> createTeam(String name, {String? description});
 }

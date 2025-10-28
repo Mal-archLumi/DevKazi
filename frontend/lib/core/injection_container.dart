@@ -23,7 +23,9 @@ import '../../features/teams/data/repositories/team_repository_impl.dart';
 import '../../features/teams/domain/repositories/team_repository.dart';
 import '../../features/teams/domain/use_cases/get_user_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/search_teams_usecase.dart';
+import '../../features/teams/domain/use_cases/create_team_usecase.dart';
 import '../../features/teams/presentation/blocs/teams/teams_cubit.dart';
+import '../../features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 
 final getIt = GetIt.instance;
 
@@ -41,7 +43,8 @@ Future<void> initDependencies() async {
 
   getIt.registerLazySingleton<ApiClient>(
     () => ApiClient(
-      baseUrl: 'http://localhost:3001/api/v1', // Use your actual backend URL
+      baseUrl:
+          'http://192.168.1.103:3001/api/v1', // Use your actual backend URL
     ),
   );
 
@@ -93,11 +96,19 @@ Future<void> initDependencies() async {
     () => SearchTeamsUseCase(getIt<TeamRepository>()),
   );
 
+  getIt.registerLazySingleton<CreateTeamUseCase>(
+    () => CreateTeamUseCase(getIt<TeamRepository>()),
+  );
+
   // Blocs/Cubits
   getIt.registerFactory<TeamsCubit>(
     () => TeamsCubit(
       getUserTeamsUseCase: getIt<GetUserTeamsUseCase>(),
       searchTeamsUseCase: getIt<SearchTeamsUseCase>(),
     ),
+  );
+
+  getIt.registerFactory<CreateTeamCubit>(
+    () => CreateTeamCubit(createTeamUseCase: getIt<CreateTeamUseCase>()),
   );
 }

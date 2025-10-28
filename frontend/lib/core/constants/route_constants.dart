@@ -9,6 +9,7 @@ class RouteConstants {
   static const String home = '/home';
   static const String dashboard = '/dashboard';
   static const String profile = '/profile';
+  static const String createTeam = '/create-team';
 
   // Add other routes as needed
   static const String settings = '/settings';

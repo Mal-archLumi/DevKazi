@@ -1,5 +1,7 @@
 // core/network/api_client.dart
+import 'dart:developer';
 import 'dart:io';
+import 'dart:math' hide log;
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -37,7 +39,7 @@ class ApiClient {
         onRequest: (options, handler) async {
           // Add auth token if required
           if (options.extra['requiresAuth'] == true) {
-            final token = await _secureStorage.read(key: 'auth_token');
+            final token = await _secureStorage.read(key: 'access_token');
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
             }
@@ -48,7 +50,7 @@ class ApiClient {
           // Handle specific error cases
           if (error.response?.statusCode == 401) {
             // Token expired, logout user
-            await _secureStorage.delete(key: 'auth_token');
+            await _secureStorage.delete(key: 'access_token');
           }
           handler.next(error);
         },
@@ -62,22 +64,48 @@ class ApiClient {
     bool requiresAuth = false,
   }) async {
     try {
+      log('🟡 ApiClient: GET $path, requiresAuth: $requiresAuth');
+
+      final options = Options(extra: {'requiresAuth': requiresAuth});
+
+      if (requiresAuth) {
+        final token = await _secureStorage.read(key: 'access_token');
+        log('🟡 ApiClient: Auth required, token exists: ${token != null}');
+        if (token != null) {
+          log(
+            '🟡 ApiClient: Sending token: ${token.substring(0, min(20, token.length))}...',
+          );
+          options.headers = {'Authorization': 'Bearer $token'};
+        } else {
+          log('🔴 ApiClient: No token found for authenticated request!');
+        }
+      }
+
       final response = await _dio.get(
         path,
         queryParameters: queryParameters,
-        options: Options(extra: {'requiresAuth': requiresAuth}),
+        options: options,
       );
 
+      log('🟢 ApiClient: GET $path - Success - Status: ${response.statusCode}');
       return ApiResponse<T>(
         data: response.data,
         statusCode: response.statusCode!,
       );
     } on DioException catch (e) {
+      log(
+        '🔴 ApiClient: GET $path - DioError - Status: ${e.response?.statusCode}, Message: ${e.message}',
+      );
+      log('🔴 ApiClient: Headers sent: ${e.requestOptions.headers}');
+      log('🔴 ApiClient: Response data: ${e.response?.data}');
+
       return ApiResponse<T>(
         statusCode: e.response?.statusCode ?? 500,
         message: e.response?.data?['message'] ?? e.message,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      log('🔴 ApiClient: GET $path - Unexpected error - $e');
+      log('🔴 Stack trace: $stackTrace');
       return ApiResponse<T>(statusCode: 500, message: 'Network error occurred');
     }
   }
@@ -88,22 +116,46 @@ class ApiClient {
     bool requiresAuth = false,
   }) async {
     try {
-      final response = await _dio.post(
-        path,
-        data: data,
-        options: Options(extra: {'requiresAuth': requiresAuth}),
-      );
+      log('🟡 ApiClient: POST $path, requiresAuth: $requiresAuth');
 
+      final options = Options(extra: {'requiresAuth': requiresAuth});
+
+      if (requiresAuth) {
+        final token = await _secureStorage.read(key: 'access_token');
+        log('🟡 ApiClient: Auth required, token exists: ${token != null}');
+        if (token != null) {
+          log(
+            '🟡 ApiClient: Sending token: ${token.substring(0, min(20, token.length))}...',
+          );
+          options.headers = {'Authorization': 'Bearer $token'};
+        } else {
+          log('🔴 ApiClient: No token found for authenticated request!');
+        }
+      }
+
+      final response = await _dio.post(path, data: data, options: options);
+
+      log(
+        '🟢 ApiClient: POST $path - Success - Status: ${response.statusCode}',
+      );
       return ApiResponse<T>(
         data: response.data,
         statusCode: response.statusCode!,
       );
     } on DioException catch (e) {
+      log(
+        '🔴 ApiClient: POST $path - DioError - Status: ${e.response?.statusCode}, Message: ${e.message}',
+      );
+      log('🔴 ApiClient: Headers sent: ${e.requestOptions.headers}');
+      log('🔴 ApiClient: Response data: ${e.response?.data}');
+
       return ApiResponse<T>(
         statusCode: e.response?.statusCode ?? 500,
         message: e.response?.data?['message'] ?? e.message,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      log('🔴 ApiClient: POST $path - Unexpected error - $e');
+      log('🔴 Stack trace: $stackTrace');
       return ApiResponse<T>(statusCode: 500, message: 'Network error occurred');
     }
   }

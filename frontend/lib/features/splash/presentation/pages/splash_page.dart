@@ -19,22 +19,24 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _initializeApp() async {
-    // Use dependency injection to get auth repository
+    // Check if user is already authenticated with better logging
     final authRepository = getIt<AuthRepository>();
 
-    // Check if user is already authenticated
+    print('🟡 Splash: Checking for existing token...');
     final accessToken = await authRepository.getAccessToken();
+
+    print('🟡 Splash: Token exists: ${accessToken != null}');
 
     await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) {
       if (accessToken != null) {
-        // User is logged in, go to teams page
+        print('🟢 Splash: User is logged in, navigating to teams');
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil(RouteConstants.teams, (route) => false);
       } else {
-        // User is not logged in, go to login page
+        print('🔴 Splash: No token found, navigating to login');
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil(RouteConstants.login, (route) => false);

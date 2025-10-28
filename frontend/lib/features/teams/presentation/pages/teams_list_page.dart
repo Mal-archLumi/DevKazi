@@ -1,9 +1,16 @@
+// teams_list_page.dart
+import 'dart:math'; // Add this import for the min function
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/core/widgets/empty_state.dart';
 import 'package:frontend/core/widgets/error_state.dart';
+import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
+import 'package:frontend/features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_state.dart';
+import 'package:frontend/features/teams/presentation/pages/create_team_page.dart';
+import 'package:frontend/core/injection_container.dart';
+import 'package:logger/logger.dart';
 import '../widgets/team_card.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
 
@@ -16,12 +23,15 @@ class TeamsListPage extends StatefulWidget {
 
 class _TeamsListPageState extends State<TeamsListPage> {
   int _currentIndex = 0;
+  final GlobalKey<_TeamsListContentState> _teamsListKey = GlobalKey();
 
   List<Widget> get _pages => [
-    const TeamsListContent(),
-    Container(
-      alignment: Alignment.center,
-      child: const Text('Notifications Page'),
+    TeamsListContent(key: _teamsListKey),
+    BlocProvider(
+      create: (context) => getIt<CreateTeamCubit>(),
+      child: CreateTeamPage(
+        onTeamCreated: _onTeamCreated, // Add this callback
+      ),
     ),
     Container(alignment: Alignment.center, child: const Text('Profile Page')),
   ];
@@ -203,6 +213,21 @@ class _TeamsListPageState extends State<TeamsListPage> {
   void _navigateToNotifications() {
     setState(() => _currentIndex = 1);
   }
+
+  // Add this method to handle team creation success
+  void _onTeamCreated() {
+    // Switch to teams tab
+    setState(() {
+      _currentIndex = 0;
+    });
+
+    // Refresh teams list
+    _refreshTeamsList();
+  }
+
+  void _refreshTeamsList() {
+    _teamsListKey.currentState?.refresh();
+  }
 }
 
 class TeamsListContent extends StatefulWidget {
@@ -220,7 +245,9 @@ class _TeamsListContentState extends State<TeamsListContent> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TeamsCubit>().loadUserTeams();
+      if (mounted) {
+        context.read<TeamsCubit>().loadUserTeams();
+      }
     });
 
     _searchController.addListener(_onSearchChanged);
@@ -243,6 +270,10 @@ class _TeamsListContentState extends State<TeamsListContent> {
     FocusScope.of(context).unfocus();
   }
 
+  void refresh() {
+    context.read<TeamsCubit>().loadUserTeams();
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<TeamsCubit, TeamsState>(
@@ -252,7 +283,6 @@ class _TeamsListContentState extends State<TeamsListContent> {
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // Always visible search bar
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -269,19 +299,20 @@ class _TeamsListContentState extends State<TeamsListContent> {
 
   Widget _buildSearchBar() {
     return Container(
-      height: 48,
+      height: 40,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.green.shade400, width: 1.5),
       ),
+      clipBehavior: Clip.antiAlias,
       child: TextField(
         controller: _searchController,
-        style: TextStyle(color: Colors.green.shade700, fontSize: 15),
+        style: TextStyle(color: Colors.green.shade400, fontSize: 15),
         decoration: InputDecoration(
           hintText: 'Search teams...',
-          hintStyle: TextStyle(color: Colors.green.shade700, fontSize: 15),
+          hintStyle: TextStyle(color: Colors.green.shade400, fontSize: 15),
           prefixIcon: _searchController.text.isEmpty
-              ? Icon(Icons.search, color: Colors.green.shade700, size: 22)
+              ? Icon(Icons.search, color: Colors.green.shade400, size: 22)
               : null,
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -316,9 +347,32 @@ class _TeamsListContentState extends State<TeamsListContent> {
 
     if (state.status == TeamsStatus.error) {
       return SliverFillRemaining(
-        child: ErrorState(
-          message: state.errorMessage,
-          onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ErrorState(
+              message: state.errorMessage,
+              onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
+            ),
+            const SizedBox(height: 16),
+            // DEBUG BUTTON
+            ElevatedButton(
+              onPressed: () async {
+                final authRepo = getIt<AuthRepository>();
+                final token = await authRepo.getAccessToken();
+                Logger().d('🔍 DEBUG: Current token: $token');
+                if (token == null) {
+                  Logger().d('🔍 DEBUG: NO TOKEN FOUND!');
+                } else {
+                  Logger().d('🔍 DEBUG: Token length: ${token.length}');
+                  Logger().d(
+                    '🔍 DEBUG: Token preview: ${token.substring(0, min(30, token.length))}...',
+                  );
+                }
+              },
+              child: const Text('Debug: Check Token'),
+            ),
+          ],
         ),
       );
     }
@@ -365,6 +419,10 @@ class _TeamsListContentState extends State<TeamsListContent> {
   }
 
   void _navigateToCreateTeam() {
-    // Navigate to create team page
+    Navigator.of(context).pushNamed('/create-team').then((shouldRefresh) {
+      if (mounted && shouldRefresh == true) {
+        context.read<TeamsCubit>().loadUserTeams();
+      }
+    });
   }
 }

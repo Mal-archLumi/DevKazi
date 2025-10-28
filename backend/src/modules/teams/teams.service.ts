@@ -378,7 +378,7 @@ export class TeamsService {
         id: team._id.toString(),
         name: team.name,
         memberCount: team.members.length,
-        createdAt: team.createdAt,
+        createdAt: (team as any).createdAt,
         lastActivity: team.lastActivity,
       }));
     } catch (error) {

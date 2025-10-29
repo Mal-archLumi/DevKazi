@@ -1,3 +1,4 @@
+// lib/features/auth/presentation/widgets/name_field.dart
 import 'package:flutter/material.dart';
 
 class NameField extends StatelessWidget {
@@ -23,26 +24,15 @@ class NameField extends StatelessWidget {
         hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 16),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade400, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade400, width: 1),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.red.shade400, width: 1),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.red.shade600, width: 2),
-        ),
+
+        // Completely remove borders
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
+
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,

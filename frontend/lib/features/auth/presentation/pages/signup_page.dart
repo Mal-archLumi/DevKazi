@@ -19,12 +19,12 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  // Text editing controllers
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
+
   final ValueNotifier<bool> agreeToTerms = ValueNotifier<bool>(false);
   final ValueNotifier<String?> errorMessage = ValueNotifier<String?>(null);
 
@@ -40,88 +40,65 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   void _handleSignUp() {
-    // Clear previous error
     errorMessage.value = null;
-
-    // Validate name
     final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+    final confirmPassword = confirmPasswordController.text;
+
     if (name.isEmpty) {
       errorMessage.value = 'Please enter your name';
       return;
     }
-
     if (name.length < 2) {
       errorMessage.value = 'Name must be at least 2 characters long';
       return;
     }
-
-    if (name.length > 50) {
-      errorMessage.value = 'Name cannot exceed 50 characters';
-      return;
-    }
-
-    // Validate email
-    final email = emailController.text.trim();
     if (email.isEmpty) {
       errorMessage.value = 'Please enter your email address';
       return;
     }
-
     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
       errorMessage.value = 'Please enter a valid email address';
       return;
     }
-
-    // Validate password
-    final password = passwordController.text;
     if (password.isEmpty) {
       errorMessage.value = 'Please enter your password';
       return;
     }
-
     if (password.length < 8) {
       errorMessage.value = 'Password must be at least 8 characters long';
       return;
     }
-
     if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])').hasMatch(password)) {
       errorMessage.value =
-          'Password must contain at least one lowercase letter, one uppercase letter, and one number';
+          'Password must contain lowercase, uppercase, and a number';
       return;
     }
-
-    // Validate confirm password
-    if (confirmPasswordController.text.isEmpty) {
+    if (confirmPassword.isEmpty) {
       errorMessage.value = 'Please confirm your password';
       return;
     }
-
+    if (password != confirmPassword) {
+      errorMessage.value = 'Passwords do not match';
+      return;
+    }
     if (!agreeToTerms.value) {
       errorMessage.value =
           'Please agree to the Terms of Service and Privacy Policy';
       return;
     }
 
-    if (password != confirmPasswordController.text) {
-      errorMessage.value = 'Passwords do not match';
-      return;
-    }
-
-    // Call AuthCubit signUp with name
     context.read<AuthCubit>().signUp(name, email, password);
   }
 
   void _handleGoogleSignUp() {
-    // Clear previous error
     errorMessage.value = null;
-
     if (!agreeToTerms.value) {
       errorMessage.value =
           'Please agree to the Terms of Service and Privacy Policy';
       return;
     }
-
-    // Use AuthCubit for Google Sign-In
     context.read<AuthCubit>().loginWithGoogle();
   }
 
@@ -130,9 +107,8 @@ class _SignUpPageState extends State<SignUpPage> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
         pageBuilder: (_, __, ___) => const LoginPage(),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -141,313 +117,354 @@ class _SignUpPageState extends State<SignUpPage> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          SystemNavigator.pop();
-        }
+        if (!didPop) SystemNavigator.pop();
       },
       child: LoadingOverlay(
         isLoading: isLoading,
         child: Scaffold(
-          backgroundColor: Colors.grey.shade50,
+          backgroundColor: Colors.grey.shade100,
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    // Logo
-                    Container(
-                      margin: const EdgeInsets.only(top: 20),
-                      child: Image.asset(
-                        'assets/images/logos/devkazi.png',
-                        width: 100,
-                        height: 100,
-                      ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 36,
                     ),
-
-                    const SizedBox(height: 10),
-
-                    // DevKazi title with gradient
-                    ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [Colors.green, Colors.blue, Colors.orange],
-                      ).createShader(bounds),
-                      child: const Text(
-                        'DevKazi',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Logo + app name
+                        Image.asset(
+                          'assets/images/logos/devkazi.png',
+                          width: 90,
+                          height: 90,
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Code. Connect. Create.
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Code. ',
+                        const SizedBox(height: 16),
+                        ShaderMask(
+                          shaderCallback: (bounds) => const LinearGradient(
+                            colors: [Colors.green, Colors.blue, Colors.orange],
+                          ).createShader(bounds),
+                          child: const Text(
+                            'DevKazi',
                             style: TextStyle(
-                              color: Colors.green[700],
-                              fontSize: 16,
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
-                          TextSpan(
-                            text: 'Connect. ',
-                            style: TextStyle(
-                              color: const Color.fromARGB(255, 21, 88, 143),
-                              fontSize: 16,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Create.',
-                            style: TextStyle(
-                              color: Colors.orange[300],
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Error message
-                    ValueListenableBuilder<String?>(
-                      valueListenable: errorMessage,
-                      builder: (context, error, child) {
-                        if (error == null) {
-                          return const SizedBox(height: 20);
-                        }
-
-                        return Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            border: Border.all(color: Colors.red.shade200),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
+                        ),
+                        const SizedBox(height: 8),
+                        RichText(
+                          text: TextSpan(
                             children: [
-                              Icon(
-                                Icons.error_outline,
-                                color: Colors.red.shade700,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  error,
-                                  style: TextStyle(
-                                    color: Colors.red.shade700,
-                                    fontSize: 14,
-                                  ),
+                              TextSpan(
+                                text: 'Code. ',
+                                style: TextStyle(
+                                  color: Colors.green[700],
+                                  fontSize: 16,
                                 ),
                               ),
-                              GestureDetector(
-                                onTap: () => errorMessage.value = null,
-                                child: Icon(
-                                  Icons.close,
-                                  color: Colors.red.shade700,
-                                  size: 18,
+                              TextSpan(
+                                text: 'Connect. ',
+                                style: TextStyle(
+                                  color: const Color.fromARGB(255, 21, 88, 143),
+                                  fontSize: 16,
+                                ),
+                              ),
+                              TextSpan(
+                                text: 'Create.',
+                                style: TextStyle(
+                                  color: Colors.orange[300],
+                                  fontSize: 16,
                                 ),
                               ),
                             ],
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                        const SizedBox(height: 36),
 
-                    // Name field
-                    NameField(
-                      controller: nameController,
-                      hintText: 'Full Name',
-                    ),
+                        // 🟢 Box container
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 32,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.25),
+                                blurRadius: 16,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                "Create your account",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
 
-                    const SizedBox(height: 16),
+                              // Error message
+                              ValueListenableBuilder<String?>(
+                                valueListenable: errorMessage,
+                                builder: (context, error, child) {
+                                  if (error == null) return const SizedBox();
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 20),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.red.shade200,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline,
+                                          color: Colors.red.shade700,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            error,
+                                            style: TextStyle(
+                                              color: Colors.red.shade700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                        GestureDetector(
+                                          onTap: () =>
+                                              errorMessage.value = null,
+                                          child: Icon(
+                                            Icons.close,
+                                            size: 18,
+                                            color: Colors.red.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
 
-                    // Email field
-                    EmailField(controller: emailController, hintText: 'Email'),
+                              // Input fields
+                              NameField(
+                                controller: nameController,
+                                hintText: 'Full Name',
+                              ),
+                              const SizedBox(height: 16),
+                              EmailField(
+                                controller: emailController,
+                                hintText: 'Email',
+                              ),
+                              const SizedBox(height: 16),
+                              PasswordField(
+                                controller: passwordController,
+                                hintText: 'Password',
+                              ),
+                              const SizedBox(height: 16),
+                              PasswordField(
+                                controller: confirmPasswordController,
+                                hintText: 'Confirm Password',
+                              ),
+                              const SizedBox(height: 20),
 
-                    const SizedBox(height: 16),
+                              // Checkbox for terms
+                              ValueListenableBuilder<bool>(
+                                valueListenable: agreeToTerms,
+                                builder: (context, value, child) {
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Checkbox(
+                                        value: value,
+                                        onChanged: isLoading
+                                            ? null
+                                            : (newValue) {
+                                                agreeToTerms.value =
+                                                    newValue ?? false;
+                                              },
+                                      ),
+                                      Expanded(
+                                        child: RichText(
+                                          text: TextSpan(
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  fontSize: 14,
+                                                  color: Colors.black87,
+                                                ),
+                                            children: [
+                                              const TextSpan(
+                                                text: 'I agree to the ',
+                                              ),
+                                              TextSpan(
+                                                text: 'Terms of Service',
+                                                style: TextStyle(
+                                                  color: Colors.blue[700],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const TextSpan(text: ' and '),
+                                              TextSpan(
+                                                text: 'Privacy Policy',
+                                                style: TextStyle(
+                                                  color: Colors.blue[700],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 24),
 
-                    // Password field
-                    PasswordField(
-                      controller: passwordController,
-                      hintText: 'Password',
-                    ),
+                              // Sign Up Button
+                              SizedBox(
+                                height: 53,
+                                child: ElevatedButton(
+                                  onPressed: isLoading ? null : _handleSignUp,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    elevation: 3,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Sign up',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
 
-                    const SizedBox(height: 16),
+                              // Divider
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Divider(
+                                      color: Colors.grey.shade300,
+                                      thickness: 1,
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    child: Text(
+                                      'or',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Divider(
+                                      color: Colors.grey.shade300,
+                                      thickness: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
 
-                    // Confirm Password field
-                    PasswordField(
-                      controller: confirmPasswordController,
-                      hintText: 'Confirm Password',
-                    ),
+                              // Google Button
+                              SizedBox(
+                                height: 53,
+                                child: OutlinedButton(
+                                  onPressed: isLoading
+                                      ? null
+                                      : _handleGoogleSignUp,
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: Colors.grey.shade400,
+                                      width: 1,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/images/logos/google_g.png',
+                                        width: 20,
+                                        height: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Continue with Google',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 28),
 
-                    const SizedBox(height: 16),
-
-                    // Agree to terms
-                    ValueListenableBuilder<bool>(
-                      valueListenable: agreeToTerms,
-                      builder: (context, value, child) {
-                        return Row(
+                        // Footer link
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Checkbox(
-                              value: value,
-                              onChanged: isLoading
-                                  ? null
-                                  : (newValue) {
-                                      agreeToTerms.value = newValue ?? false;
-                                    },
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                            Text(
+                              "Already have an account? ",
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontSize: 14,
+                              ),
                             ),
-                            Expanded(
-                              child: RichText(
-                                text: TextSpan(
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontSize: 14),
-                                  children: [
-                                    const TextSpan(text: 'I agree to the '),
-                                    TextSpan(
-                                      text: 'Terms of Service',
-                                      style: TextStyle(
-                                        color: Colors.blue[700],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const TextSpan(text: ' and '),
-                                    TextSpan(
-                                      text: 'Privacy Policy',
-                                      style: TextStyle(
-                                        color: Colors.blue[700],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
+                            GestureDetector(
+                              onTap: isLoading ? null : _navigateToSignIn,
+                              child: Text(
+                                'Sign in',
+                                style: TextStyle(
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
                                 ),
                               ),
                             ),
                           ],
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Sign Up Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 53,
-                      child: ElevatedButton(
-                        onPressed: isLoading ? null : _handleSignUp,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
-                          elevation: 1,
-                          shadowColor: Colors.black12,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        child: const Text('Sign up'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Divider with "or"
-                    Row(
-                      children: [
-                        Expanded(child: Divider(color: Colors.grey.shade400)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'or',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        Expanded(child: Divider(color: Colors.grey.shade400)),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Google Sign Up Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: isLoading ? null : _handleGoogleSignUp,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black87,
-                          side: BorderSide(color: Colors.grey.shade400),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(
-                              'assets/images/logos/google_g.png',
-                              width: 20,
-                              height: 20,
-                              fit: BoxFit.contain,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text('Continue with Google'),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Sign in link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Already have an account? ",
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 14,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: isLoading ? null : _navigateToSignIn,
-                          child: Text(
-                            'Sign in',
-                            style: TextStyle(
-                              color: Colors.blue[700],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 40),
-                  ],
+                  ),
                 ),
               ),
             ),

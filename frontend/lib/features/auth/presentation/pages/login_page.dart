@@ -314,12 +314,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                       ? null
                                       : () => _handleLogin(context),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color.fromARGB(
-                                      255,
-                                      62,
-                                      124,
-                                      107,
-                                    ),
+                                    backgroundColor: Colors.green,
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),

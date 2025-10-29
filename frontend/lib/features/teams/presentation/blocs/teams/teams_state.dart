@@ -2,7 +2,7 @@
 import 'package:equatable/equatable.dart';
 import '../../../domain/entities/team_entity.dart';
 
-enum TeamsStatus { initial, loading, success, error }
+enum TeamsStatus { initial, loading, success, error, loaded }
 
 class TeamsState extends Equatable {
   final TeamsStatus status;
@@ -28,6 +28,7 @@ class TeamsState extends Equatable {
     List<TeamEntity>? filteredTeams,
     String? searchQuery,
     String? errorMessage,
+    required bool isSearching,
   }) {
     return TeamsState(
       status: status ?? this.status,

@@ -3,22 +3,32 @@ import '../../domain/entities/team_entity.dart';
 
 class TeamModel extends TeamEntity {
   const TeamModel({
-    required super.id,
-    required super.name,
-    required super.logoUrl,
-    required super.initial,
-    required super.memberCount,
-    required super.createdAt,
-  });
+    required String id,
+    required String name,
+    String? description,
+    String? logoUrl,
+    required int memberCount,
+    required DateTime createdAt,
+    bool isMember = false,
+  }) : super(
+         id: id,
+         name: name,
+         description: description,
+         logoUrl: logoUrl,
+         memberCount: memberCount,
+         createdAt: createdAt,
+         isMember: isMember,
+       );
 
   factory TeamModel.fromJson(Map<String, dynamic> json) {
     return TeamModel(
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
-      logoUrl: null, // Always null since we're using initials
-      initial: _getInitials(json['name'] ?? ''),
+      description: json['description'],
+      logoUrl: json['logoUrl'],
       memberCount: json['memberCount'] ?? 1,
       createdAt: _parseDateTime(json['createdAt']),
+      isMember: json['isMember'] ?? false,
     );
   }
 
@@ -29,19 +39,15 @@ class TeamModel extends TeamEntity {
     return DateTime.now();
   }
 
-  static String _getInitials(String name) {
-    if (name.isEmpty) return 'T';
-    final words = name.trim().split(' ');
-    if (words.length == 1) return words[0][0].toUpperCase();
-    return '${words[0][0]}${words[words.length - 1][0]}'.toUpperCase();
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
+      'description': description,
+      'logoUrl': logoUrl,
       'memberCount': memberCount,
       'createdAt': createdAt.toIso8601String(),
+      'isMember': isMember,
     };
   }
 }

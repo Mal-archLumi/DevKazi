@@ -1,6 +1,7 @@
 // presentation/blocs/teams/teams_cubit.dart
 import 'package:bloc/bloc.dart';
 import 'package:frontend/core/errors/failures.dart';
+import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_user_teams_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/search_teams_usecase.dart';
 import 'teams_state.dart';
@@ -15,7 +16,7 @@ class TeamsCubit extends Cubit<TeamsState> {
   }) : super(const TeamsState());
 
   Future<void> loadUserTeams() async {
-    emit(state.copyWith(status: TeamsStatus.loading));
+    emit(state.copyWith(status: TeamsStatus.loading, isSearching: false));
 
     final result = await getUserTeamsUseCase();
 
@@ -24,42 +25,54 @@ class TeamsCubit extends Cubit<TeamsState> {
         state.copyWith(
           status: TeamsStatus.error,
           errorMessage: _mapFailureToMessage(failure),
+          isSearching: false,
         ),
       ),
       (teams) => emit(
         state.copyWith(
-          status: TeamsStatus.success,
+          status: TeamsStatus.loaded,
           teams: teams,
           filteredTeams: teams,
+          isSearching: false,
         ),
       ),
     );
   }
 
-  void searchTeams(String query) {
+  Future<void> searchTeams(String query) async {
     if (query.isEmpty) {
-      emit(state.copyWith(searchQuery: query, filteredTeams: state.teams));
+      emit(
+        state.copyWith(
+          filteredTeams: state.teams,
+          isSearching: false,
+          searchQuery: '',
+        ),
+      );
       return;
     }
 
-    emit(
-      state.copyWith(
-        searchQuery: query,
-        filteredTeams: state.teams
-            .where(
-              (team) => team.name.toLowerCase().contains(query.toLowerCase()),
-            )
-            .toList(),
+    emit(state.copyWith(isSearching: true, searchQuery: query));
+
+    final result = await searchTeamsUseCase(query);
+
+    result.fold(
+      (failure) => emit(
+        state.copyWith(
+          status: TeamsStatus.error,
+          errorMessage: _mapFailureToMessage(failure),
+          isSearching: false,
+        ),
       ),
+      (teams) => emit(state.copyWith(filteredTeams: teams, isSearching: true)),
     );
   }
 
   String _mapFailureToMessage(Failure failure) {
     switch (failure.runtimeType) {
       case ServerFailure:
-        return 'Server error occurred';
+        return 'Failed to load teams. Please try again.';
       case CacheFailure:
-        return 'No internet connection. Showing cached data';
+        return 'No internet connection. Please check your connection.';
       default:
         return 'An unexpected error occurred';
     }

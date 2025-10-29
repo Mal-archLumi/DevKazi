@@ -1,5 +1,4 @@
-// teams_list_page.dart
-import 'dart:math'; // Add this import for the min function
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/core/widgets/empty_state.dart';
@@ -8,6 +7,7 @@ import 'package:frontend/features/auth/domain/repositories/auth_repository.dart'
 import 'package:frontend/features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_state.dart';
+import 'package:frontend/features/teams/presentation/pages/browse_teams_page.dart';
 import 'package:frontend/features/teams/presentation/pages/create_team_page.dart';
 import 'package:frontend/core/injection_container.dart';
 import 'package:logger/logger.dart';
@@ -23,71 +23,19 @@ class TeamsListPage extends StatefulWidget {
 
 class _TeamsListPageState extends State<TeamsListPage> {
   int _currentIndex = 0;
-  final GlobalKey<_TeamsListContentState> _teamsListKey = GlobalKey();
-
-  List<Widget> get _pages => [
-    TeamsListContent(key: _teamsListKey),
-    BlocProvider(
-      create: (context) => getIt<CreateTeamCubit>(),
-      child: CreateTeamPage(
-        onTeamCreated: _onTeamCreated, // Add this callback
-      ),
-    ),
-    Container(alignment: Alignment.center, child: const Text('Profile Page')),
-  ];
+  final GlobalKey<_TeamsListBodyState> _teamsListKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _buildAppBar(),
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0;
-          const swipeThreshold = 300.0;
-
-          if (velocity.abs() < swipeThreshold) return;
-
-          setState(() {
-            if (velocity > 0 && _currentIndex > 0) {
-              _currentIndex--;
-            } else if (velocity < 0 && _currentIndex < _pages.length - 1) {
-              _currentIndex++;
-            }
-          });
-        },
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position:
-                    Tween<Offset>(
-                      begin: const Offset(0.1, 0),
-                      end: Offset.zero,
-                    ).animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeInOut,
-                      ),
-                    ),
-                child: child,
-              ),
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey<int>(_currentIndex),
-            child: _pages[_currentIndex],
-          ),
-        ),
-      ),
+      // Only show app bar for the first tab (My Teams)
+      appBar: _currentIndex == 0 ? _buildMyTeamsAppBar() : null,
+      body: _buildCurrentPage(),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
-  AppBar? _buildAppBar() {
-    if (_currentIndex != 0) return null;
-
+  AppBar _buildMyTeamsAppBar() {
     return AppBar(
       title: Row(
         children: [
@@ -110,7 +58,6 @@ class _TeamsListPageState extends State<TeamsListPage> {
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 10),
-          key: const ValueKey(Size(24, 24)),
           child: IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: _navigateToNotifications,
@@ -120,12 +67,28 @@ class _TeamsListPageState extends State<TeamsListPage> {
     );
   }
 
+  Widget _buildCurrentPage() {
+    switch (_currentIndex) {
+      case 0:
+        return TeamsListBody(key: _teamsListKey);
+      case 1:
+        return BrowseTeamsPage(onCreateTeamPressed: _navigateToCreateTeam);
+      case 2:
+        return Container(
+          alignment: Alignment.center,
+          child: const Text('Profile Page'),
+        );
+      default:
+        return TeamsListBody(key: _teamsListKey);
+    }
+  }
+
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -139,7 +102,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Theme.of(
           context,
-        ).colorScheme.onSurface.withValues(alpha: 0.6),
+        ).colorScheme.onSurface.withOpacity(0.6),
         selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 12,
@@ -154,7 +117,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -163,7 +126,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                 size: 24,
               ),
             ),
-            label: 'Teams',
+            label: 'My Teams',
           ),
           BottomNavigationBarItem(
             icon: Container(
@@ -172,18 +135,18 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
               child: Icon(
                 _currentIndex == 1
-                    ? Icons.add_circle_rounded
-                    : Icons.add_circle_outline_rounded,
+                    ? Icons.explore_rounded
+                    : Icons.explore_outlined,
                 size: 24,
               ),
             ),
-            label: 'Create',
+            label: 'Browse',
           ),
           BottomNavigationBarItem(
             icon: Container(
@@ -192,7 +155,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -211,18 +174,28 @@ class _TeamsListPageState extends State<TeamsListPage> {
   }
 
   void _navigateToNotifications() {
-    setState(() => _currentIndex = 1);
+    // Implement notifications navigation
   }
 
-  // Add this method to handle team creation success
-  void _onTeamCreated() {
-    // Switch to teams tab
-    setState(() {
-      _currentIndex = 0;
-    });
+  void _navigateToCreateTeam() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => BlocProvider(
+          create: (context) => getIt<CreateTeamCubit>(),
+          child: CreateTeamPage(onTeamCreated: _onTeamCreated),
+        ),
+      ),
+    );
+  }
 
-    // Refresh teams list
+  void _onTeamCreated() {
     _refreshTeamsList();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Team created successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _refreshTeamsList() {
@@ -230,14 +203,14 @@ class _TeamsListPageState extends State<TeamsListPage> {
   }
 }
 
-class TeamsListContent extends StatefulWidget {
-  const TeamsListContent({super.key});
+class TeamsListBody extends StatefulWidget {
+  const TeamsListBody({super.key});
 
   @override
-  State<TeamsListContent> createState() => _TeamsListContentState();
+  State<TeamsListBody> createState() => _TeamsListBodyState();
 }
 
-class _TeamsListContentState extends State<TeamsListContent> {
+class _TeamsListBodyState extends State<TeamsListBody> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -282,6 +255,7 @@ class _TeamsListContentState extends State<TeamsListContent> {
           onRefresh: () => context.read<TeamsCubit>().loadUserTeams(),
           child: CustomScrollView(
             controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
@@ -299,41 +273,37 @@ class _TeamsListContentState extends State<TeamsListContent> {
 
   Widget _buildSearchBar() {
     return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.green.shade400, width: 1.5),
-      ),
-      clipBehavior: Clip.antiAlias,
+      height: 44,
+      margin: const EdgeInsets.symmetric(horizontal: 0),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(30)),
       child: TextField(
         controller: _searchController,
-        style: TextStyle(color: Colors.green.shade400, fontSize: 15),
+        style: TextStyle(color: Colors.green.shade400, fontSize: 16),
         decoration: InputDecoration(
-          hintText: 'Search teams...',
-          hintStyle: TextStyle(color: Colors.green.shade400, fontSize: 15),
-          prefixIcon: _searchController.text.isEmpty
-              ? Icon(Icons.search, color: Colors.green.shade400, size: 22)
-              : null,
+          hintText: 'Search my teams...',
+          hintStyle: TextStyle(
+            color: Colors.green.shade400.withOpacity(0.7),
+            fontSize: 16,
+          ),
+          prefixIcon: Icon(
+            Icons.search,
+            color: Colors.green.shade400,
+            size: 22,
+          ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: Icon(
                     Icons.close,
-                    color: Colors.green.withValues(alpha: 0.6),
+                    color: Colors.green.shade400.withOpacity(0.7),
                     size: 20,
                   ),
                   onPressed: _clearSearch,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
                 )
               : null,
           border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          errorBorder: InputBorder.none,
-          disabledBorder: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 10,
+            horizontal: 16,
+            vertical: 12,
           ),
         ),
       ),
@@ -342,37 +312,42 @@ class _TeamsListContentState extends State<TeamsListContent> {
 
   Widget _buildContent(TeamsState state) {
     if (state.status == TeamsStatus.loading) {
-      return const SliverFillRemaining(child: TeamsLoadingShimmer());
+      return const SliverToBoxAdapter(child: TeamsLoadingShimmer());
     }
 
     if (state.status == TeamsStatus.error) {
-      return SliverFillRemaining(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ErrorState(
-              message: state.errorMessage,
-              onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
+      return SliverToBoxAdapter(
+        child: Container(
+          height: 400,
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ErrorState(
+                  message: state.errorMessage,
+                  onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    final authRepo = getIt<AuthRepository>();
+                    final token = await authRepo.getAccessToken();
+                    Logger().d('🔍 DEBUG: Current token: $token');
+                    if (token == null) {
+                      Logger().d('🔍 DEBUG: NO TOKEN FOUND!');
+                    } else {
+                      Logger().d('🔍 DEBUG: Token length: ${token.length}');
+                      Logger().d(
+                        '🔍 DEBUG: Token preview: ${token.substring(0, min(30, token.length))}...',
+                      );
+                    }
+                  },
+                  child: const Text('Debug: Check Token'),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            // DEBUG BUTTON
-            ElevatedButton(
-              onPressed: () async {
-                final authRepo = getIt<AuthRepository>();
-                final token = await authRepo.getAccessToken();
-                Logger().d('🔍 DEBUG: Current token: $token');
-                if (token == null) {
-                  Logger().d('🔍 DEBUG: NO TOKEN FOUND!');
-                } else {
-                  Logger().d('🔍 DEBUG: Token length: ${token.length}');
-                  Logger().d(
-                    '🔍 DEBUG: Token preview: ${token.substring(0, min(30, token.length))}...',
-                  );
-                }
-              },
-              child: const Text('Debug: Check Token'),
-            ),
-          ],
+          ),
         ),
       );
     }
@@ -380,17 +355,38 @@ class _TeamsListContentState extends State<TeamsListContent> {
     final teamsToShow = state.isSearching ? state.filteredTeams : state.teams;
 
     if (teamsToShow.isEmpty) {
-      return SliverFillRemaining(
-        child: EmptyState(
-          title: state.isSearching ? 'No teams found' : 'No teams yet',
-          message: state.isSearching
-              ? 'Try searching with different keywords'
-              : 'Create your first team to get started',
-          icon: state.isSearching
-              ? Icons.search_off_rounded
-              : Icons.group_add_rounded,
-          actionText: state.isSearching ? null : 'Create Team',
-          onAction: state.isSearching ? null : _navigateToCreateTeam,
+      return SliverToBoxAdapter(
+        child: Container(
+          height: 400,
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: EmptyState(
+              title: state.isSearching ? 'No teams found' : 'No teams yet',
+              message: state.isSearching
+                  ? 'Try searching with different keywords'
+                  : 'Create your first team to get started',
+              icon: state.isSearching
+                  ? Icons.search_off_rounded
+                  : Icons.group_add_rounded,
+              actionText: state.isSearching ? null : 'Create Team',
+              onAction: state.isSearching
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => BlocProvider(
+                            create: (context) => getIt<CreateTeamCubit>(),
+                            child: CreateTeamPage(
+                              onTeamCreated: () {
+                                refresh();
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+            ),
+          ),
         ),
       );
     }
@@ -416,13 +412,5 @@ class _TeamsListContentState extends State<TeamsListContent> {
 
   void _navigateToTeamDetails(String teamId) {
     // Navigate to team details page
-  }
-
-  void _navigateToCreateTeam() {
-    Navigator.of(context).pushNamed('/create-team').then((shouldRefresh) {
-      if (mounted && shouldRefresh == true) {
-        context.read<TeamsCubit>().loadUserTeams();
-      }
-    });
   }
 }

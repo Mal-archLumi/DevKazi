@@ -1,8 +1,7 @@
 // data/repositories/team_repository_impl.dart
 import 'package:dartz/dartz.dart';
 import 'package:frontend/core/injection_container.dart';
-import 'dart:developer'; // Add this import
-import 'package:get_it/get_it.dart'; // Add this import for getIt
+import 'dart:developer';
 import '../../domain/entities/team_entity.dart';
 import '../../domain/repositories/team_repository.dart';
 import '../data_sources/remote/team_remote_data_source.dart';
@@ -10,7 +9,7 @@ import '../data_sources/local/team_local_data_source.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/network/network_info.dart';
-import '../../../auth/domain/repositories/auth_repository.dart'; // Add this import for AuthRepository
+import '../../../auth/domain/repositories/auth_repository.dart';
 
 class TeamRepositoryImpl implements TeamRepository {
   final TeamRemoteDataSource remoteDataSource;
@@ -28,7 +27,6 @@ class TeamRepositoryImpl implements TeamRepository {
     try {
       log('🟡 TeamRepositoryImpl: Getting user teams...');
 
-      // Check token first
       final authRepository = getIt<AuthRepository>();
       final token = await authRepository.getAccessToken();
       log(
@@ -100,19 +98,19 @@ class TeamRepositoryImpl implements TeamRepository {
   }
 
   @override
-  Future<Either<Failure, void>> createTeam(
-    String name, {
+  Future<Either<Failure, TeamEntity>> createTeam(
+    String name,
     String? description,
-  }) async {
+  ) async {
     try {
       log(
         '🟡 TeamRepositoryImpl: Checking network connection for create team...',
       );
       if (await networkInfo.isConnected) {
         log('🟢 TeamRepositoryImpl: Network connected, creating team: $name');
-        await remoteDataSource.createTeam(name, description);
+        final team = await remoteDataSource.createTeam(name, description);
         log('🟢 TeamRepositoryImpl: Team created successfully');
-        return const Right(null);
+        return Right(team);
       } else {
         log('🔴 TeamRepositoryImpl: No internet connection for create team');
         return Left(CacheFailure('No internet connection'));
@@ -124,6 +122,62 @@ class TeamRepositoryImpl implements TeamRepository {
       return Left(ServerFailure(e.message));
     } catch (e, stackTrace) {
       log('🔴 TeamRepositoryImpl: Unexpected error during create team - $e');
+      log('🔴 Stack trace: $stackTrace');
+      return Left(ServerFailure('Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<TeamEntity>>> getAllTeams() async {
+    try {
+      log(
+        '🟡 TeamRepositoryImpl: Checking network connection for get all teams...',
+      );
+      if (await networkInfo.isConnected) {
+        log('🟢 TeamRepositoryImpl: Network connected, fetching all teams...');
+        final remoteTeams = await remoteDataSource.getAllTeams();
+        log(
+          '🟢 TeamRepositoryImpl: Successfully fetched ${remoteTeams.length} teams',
+        );
+        return Right(remoteTeams);
+      } else {
+        log('🔴 TeamRepositoryImpl: No internet connection for get all teams');
+        return Left(NetworkFailure());
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl: ServerException during get all teams - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e, stackTrace) {
+      log('🔴 TeamRepositoryImpl: Unexpected error during get all teams - $e');
+      log('🔴 Stack trace: $stackTrace');
+      return Left(ServerFailure('Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, bool>> joinTeam(String teamId) async {
+    try {
+      log(
+        '🟡 TeamRepositoryImpl: Checking network connection for join team...',
+      );
+      if (await networkInfo.isConnected) {
+        log('🟢 TeamRepositoryImpl: Network connected, joining team: $teamId');
+        await remoteDataSource.joinTeam(teamId);
+        log('🟢 TeamRepositoryImpl: Successfully joined team');
+        return const Right(true);
+      } else {
+        log('🔴 TeamRepositoryImpl: No internet connection for join team');
+        return Left(NetworkFailure());
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl: ServerException during join team - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e, stackTrace) {
+      log('🔴 TeamRepositoryImpl: Unexpected error during join team - $e');
       log('🔴 Stack trace: $stackTrace');
       return Left(ServerFailure('Unexpected error: $e'));
     }

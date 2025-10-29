@@ -1,6 +1,5 @@
 // core/injection_container.dart
 import 'package:get_it/get_it.dart';
-// ignore: unused_import
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -24,8 +23,11 @@ import '../../features/teams/domain/repositories/team_repository.dart';
 import '../../features/teams/domain/use_cases/get_user_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/search_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/create_team_usecase.dart';
+import '../../features/teams/domain/use_cases/get_all_teams_usecase.dart';
+import '../../features/teams/domain/use_cases/join_team_usecase.dart';
 import '../../features/teams/presentation/blocs/teams/teams_cubit.dart';
 import '../../features/teams/presentation/blocs/create_team/create_team_cubit.dart';
+import '../../features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
 
 final getIt = GetIt.instance;
 
@@ -43,8 +45,7 @@ Future<void> initDependencies() async {
 
   getIt.registerLazySingleton<ApiClient>(
     () => ApiClient(
-      baseUrl:
-          'https://fattiest-ebony-supplely.ngrok-free.dev/api/v1', // Use your actual backend URL
+      baseUrl: 'https://fattiest-ebony-supplely.ngrok-free.dev/api/v1',
     ),
   );
 
@@ -100,6 +101,14 @@ Future<void> initDependencies() async {
     () => CreateTeamUseCase(getIt<TeamRepository>()),
   );
 
+  getIt.registerLazySingleton<GetAllTeamsUseCase>(
+    () => GetAllTeamsUseCase(getIt<TeamRepository>()),
+  );
+
+  getIt.registerLazySingleton<JoinTeamUseCase>(
+    () => JoinTeamUseCase(getIt<TeamRepository>()),
+  );
+
   // Blocs/Cubits
   getIt.registerFactory<TeamsCubit>(
     () => TeamsCubit(
@@ -110,5 +119,12 @@ Future<void> initDependencies() async {
 
   getIt.registerFactory<CreateTeamCubit>(
     () => CreateTeamCubit(createTeamUseCase: getIt<CreateTeamUseCase>()),
+  );
+
+  getIt.registerFactory<BrowseTeamsCubit>(
+    () => BrowseTeamsCubit(
+      getAllTeams: getIt<GetAllTeamsUseCase>(),
+      joinTeamUseCase: getIt<JoinTeamUseCase>(), // Fixed parameter name
+    ),
   );
 }

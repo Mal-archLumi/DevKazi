@@ -47,7 +47,7 @@ class CreateTeamCubit extends Cubit<CreateTeamState> {
 
     final result = await createTeamUseCase(
       state.name,
-      description: state.description.isEmpty ? null : state.description,
+      state.description.isEmpty ? null : state.description,
     );
 
     result.fold(

@@ -20,7 +20,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   late AnimationController _errorAnimationController;
   late Animation<double> _errorAnimation;
 
-  // Text editing controllers
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> rememberMe = ValueNotifier<bool>(false);
@@ -53,7 +52,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     });
     _errorAnimationController.forward();
 
-    // Auto-hide error after 4 seconds
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) {
         _hideError();
@@ -72,7 +70,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _handleLogin(BuildContext context) {
-    // Validate inputs
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
@@ -91,20 +88,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       return;
     }
 
-    // Make password validation consistent with signup (8+ characters)
     if (password.length < 8) {
       _showError('Password must be at least 8 characters long');
       return;
     }
 
-    // Use AuthCubit for login
     if (!mounted) return;
-
     context.read<AuthCubit>().login(email, password);
   }
 
   void _handleGoogleSignIn(BuildContext context) {
-    // Use AuthCubit for Google Sign-In
     context.read<AuthCubit>().loginWithGoogle();
   }
 
@@ -113,15 +106,13 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
         pageBuilder: (_, __, ___) => const SignUpPage(),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
 
   void _navigateToForgotPassword(BuildContext context) {
-    // TODO: Implement navigation to forgot password page
     Navigator.pushNamed(context, '/forgot-password');
   }
 
@@ -187,33 +178,32 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          SystemNavigator.pop();
-        }
+        if (!didPop) SystemNavigator.pop();
       },
       child: LoadingOverlay(
         isLoading: isLoading,
         child: Scaffold(
-          backgroundColor: Colors.grey.shade50,
+          backgroundColor: Colors.grey.shade100,
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
-                    Container(
-                      margin: const EdgeInsets.only(top: 20),
-                      child: Image.asset(
-                        'assets/images/logos/devkazi.png',
-                        width: 100,
-                        height: 100,
-                      ),
+                    // App logo
+                    Image.asset(
+                      'assets/images/logos/devkazi.png',
+                      width: 90,
+                      height: 90,
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
-                    // DevKazi title with gradient
+                    // Gradient title
                     ShaderMask(
                       shaderCallback: (bounds) => const LinearGradient(
                         colors: [Colors.green, Colors.blue, Colors.orange],
@@ -221,216 +211,204 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       child: const Text(
                         'DevKazi',
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 20),
-
-                    // Code. Connect. Create.
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Code. ',
-                            style: TextStyle(
-                              color: Colors.green[700],
-                              fontSize: 16,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Connect. ',
-                            style: TextStyle(
-                              color: const Color.fromARGB(255, 21, 88, 143),
-                              fontSize: 16,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Create.',
-                            style: TextStyle(
-                              color: Colors.orange[300],
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 8),
+                    Text(
+                      "Code. Connect. Create.",
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 14,
+                        letterSpacing: 0.5,
                       ),
                     ),
 
                     const SizedBox(height: 40),
 
-                    // Error message widget
-                    _buildErrorWidget(),
+                    // 🟢 Box model card container
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildErrorWidget(),
 
-                    // Email field
-                    EmailField(controller: emailController, hintText: 'Email'),
+                              EmailField(
+                                controller: emailController,
+                                hintText: 'Email',
+                              ),
+                              const SizedBox(height: 16),
+                              PasswordField(
+                                controller: passwordController,
+                                hintText: 'Password',
+                              ),
 
-                    const SizedBox(height: 16),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: rememberMe,
+                                    builder: (context, value, _) {
+                                      return Row(
+                                        children: [
+                                          Checkbox(
+                                            value: value,
+                                            onChanged: isLoading
+                                                ? null
+                                                : (v) => rememberMe.value =
+                                                      v ?? false,
+                                            materialTapTargetSize:
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                          ),
+                                          const Text("Remember me"),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  GestureDetector(
+                                    onTap: isLoading
+                                        ? null
+                                        : () => _navigateToForgotPassword(
+                                            context,
+                                          ),
+                                    child: Text(
+                                      "Forgot password?",
+                                      style: TextStyle(
+                                        color: Colors.blue[700],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
 
-                    // Password field
-                    PasswordField(
-                      controller: passwordController,
-                      hintText: 'Password',
-                    ),
+                              const SizedBox(height: 20),
 
-                    const SizedBox(height: 16),
-
-                    // Remember me & Forgot password
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Remember Me
-                        ValueListenableBuilder<bool>(
-                          valueListenable: rememberMe,
-                          builder: (context, value, child) {
-                            return Row(
-                              children: [
-                                Checkbox(
-                                  value: value,
-                                  onChanged: isLoading
+                              // Sign In button
+                              SizedBox(
+                                height: 50,
+                                child: ElevatedButton(
+                                  onPressed: isLoading
                                       ? null
-                                      : (newValue) {
-                                          rememberMe.value = newValue ?? false;
-                                        },
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                      : () => _handleLogin(context),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color.fromARGB(
+                                      255,
+                                      62,
+                                      124,
+                                      107,
+                                    ),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Sign in',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
                                 ),
-                                Text(
-                                  'Remember me',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontSize: 14),
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // Divider
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Divider(color: Colors.grey.shade400),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    child: Text(
+                                      "or",
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Divider(color: Colors.grey.shade400),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // Google button
+                              SizedBox(
+                                height: 50,
+                                child: OutlinedButton(
+                                  onPressed: isLoading
+                                      ? null
+                                      : () => _handleGoogleSignIn(context),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/images/logos/google_g.png',
+                                        width: 20,
+                                        height: 20,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text("Continue with Google"),
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            );
-                          },
-                        ),
-
-                        // Forgot Password
-                        GestureDetector(
-                          onTap: isLoading
-                              ? null
-                              : () => _navigateToForgotPassword(context),
-                          child: Text(
-                            'Forgot password?',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: Colors.blue[700],
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Sign In Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 53,
-                      child: ElevatedButton(
-                        onPressed: isLoading
-                            ? null
-                            : () => _handleLogin(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
-                          elevation: 1,
-                          shadowColor: Colors.black12,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        child: const Text('Sign in'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Divider with "or"
-                    Row(
-                      children: [
-                        Expanded(child: Divider(color: Colors.grey.shade400)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'or',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        Expanded(child: Divider(color: Colors.grey.shade400)),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Google Sign In Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 53,
-                      child: OutlinedButton(
-                        onPressed: isLoading
-                            ? null
-                            : () => _handleGoogleSignIn(context),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black87,
-                          side: BorderSide(color: Colors.grey.shade400),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(
-                              'assets/images/logos/google_g.png',
-                              width: 20,
-                              height: 20,
-                              fit: BoxFit.contain,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text('Continue with Google'),
-                          ],
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 30),
 
                     // Sign up link
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          "Don't have an account? ",
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 14,
-                          ),
-                        ),
+                        const Text("Don't have an account? "),
                         GestureDetector(
                           onTap: isLoading
                               ? null
                               : () => _navigateToSignUp(context),
                           child: Text(
-                            'Sign up',
+                            "Sign up",
                             style: TextStyle(
                               color: Colors.blue[700],
-                              fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -438,43 +416,20 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       ],
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
-                    // Terms and privacy
+                    // Terms
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: RichText(
+                      child: Text(
+                        "By continuing, you agree to DevKazi’s Terms of Service and Privacy Policy.",
                         textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                          ),
-                          children: [
-                            const TextSpan(
-                              text: 'By continuing, you agree to DevKazi\'s ',
-                            ),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: TextStyle(
-                                color: Colors.blue[700],
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                            const TextSpan(text: ' and '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: TextStyle(
-                                color: Colors.blue[700],
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -490,16 +445,13 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          // Use a small delay to ensure UI updates complete before navigation
           Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/teams');
             }
           });
         } else if (state is AuthError) {
-          if (mounted) {
-            _showError(state.message);
-          }
+          if (mounted) _showError(state.message);
         }
       },
       builder: (context, state) {

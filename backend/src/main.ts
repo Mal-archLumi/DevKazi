@@ -6,8 +6,8 @@ import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { Request, Response } from 'express'; // Added for favicon handling
-import { NestExpressApplication } from '@nestjs/platform-express'; // Ensure we use the Express platform
+import { Request, Response } from 'express';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -30,7 +30,7 @@ async function bootstrap() {
   // Handle favicon.ico requests
   app.use((req: Request, res: Response, next) => {
     if (req.originalUrl === '/favicon.ico') {
-      res.status(204).end(); // Return empty response to suppress 404
+      res.status(204).end();
     } else {
       next();
     }
@@ -41,7 +41,7 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: true, // ✅ allows any localhost port (great for dev)
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
@@ -78,9 +78,34 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(port, '0.0.0.0', () => {
-    logger.log(`🚀 Server running on http://0.0.0.0:${port}/api/v1`);
-    logger.log(`🌍 Environment: ${nodeEnv}`);
-    logger.log(`🔗 Frontend URL: ${frontendUrl}`);
+    logger.log(`Server running on http://0.0.0.0:${port}/api/v1`);
+    logger.log(`Environment: ${nodeEnv}`);
+    logger.log(`Frontend URL: ${frontendUrl}`);
+
+    // SAFELY log all registered routes
+    try {
+      const server = app.getHttpServer();
+      const router = (server as any)._events?.request?._router;
+
+      if (router && router.stack) {
+        logger.log('Registered routes:');
+        router.stack.forEach((layer: any) => {
+          if (layer.route) {
+            const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase()).join(', ');
+            const path = layer.route.path;
+            logger.log(`  ${methods} ${path}`);
+          }
+        });
+      } else {
+        logger.warn('Could not read router stack. Routes may not be registered yet.');
+      }
+    } catch (error) {
+      logger.error('Failed to log routes:', error);
+    }
   });
 }
-bootstrap();
+
+bootstrap().catch(err => {
+  console.error('Bootstrap failed:', err);
+  process.exit(1);
+});

@@ -38,14 +38,14 @@ class TeamCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        image: team.logoUrl != null
+        image: team.logoUrl != null && team.logoUrl!.isNotEmpty
             ? DecorationImage(
                 image: NetworkImage(team.logoUrl!),
                 fit: BoxFit.cover,
               )
             : null,
       ),
-      child: team.logoUrl == null
+      child: team.logoUrl == null || team.logoUrl!.isEmpty
           ? Center(
               child: Text(
                 team.initial,
@@ -59,6 +59,7 @@ class TeamCard extends StatelessWidget {
     );
   }
 
+  // Rest of the file remains the same...
   Widget _buildTeamInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,9 +76,7 @@ class TeamCard extends StatelessWidget {
         Text(
           'Created ${_formatDate(team.createdAt)}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
           ),
         ),
       ],
@@ -97,9 +96,7 @@ class TeamCard extends StatelessWidget {
         Text(
           'members',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
           ),
         ),
         const SizedBox(height: 8),

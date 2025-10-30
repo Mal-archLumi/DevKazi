@@ -30,6 +30,22 @@ import {
 export class TeamsController {
   constructor(private readonly teamsService: TeamsService) {}
 
+ @Get()
+@ApiOperation({ summary: 'Get all teams' })
+@ApiResponse({ status: 200, description: 'All teams retrieved successfully' })
+async findAll() {
+  console.log('🟡 GET /teams called');
+  try {
+    const result = await this.teamsService.findAll();
+    console.log('🟢 GET /teams success, found teams:', result.length);
+    return result;
+  } catch (error) {
+    console.log('🔴 GET /teams error:', error.message);
+    throw error;
+  }
+}
+
+
   @Post()
   @ApiOperation({ summary: 'Create a new team' })
   @ApiResponse({ status: 201, description: 'Team created successfully' })
@@ -44,6 +60,21 @@ export class TeamsController {
   async getUserTeams(@Request() req) {
     return this.teamsService.getUserTeams(req.user.userId);
   }
+
+  @Get('browse/all')
+@ApiOperation({ summary: 'Get all teams except current user teams' })
+@ApiResponse({ status: 200, description: 'Teams retrieved successfully' })
+async getAllTeamsExceptUser(@Request() req) {
+  console.log('🟡 GET /teams/browse/all called for user:', req.user.userId);
+  try {
+    const result = await this.teamsService.getAllTeamsExceptUser(req.user.userId);
+    console.log('🟢 GET /teams/browse/all success, found teams:', result.length);
+    return result;
+  } catch (error) {
+    console.log('🔴 GET /teams/browse/all error:', error.message);
+    throw error;
+  }
+}
 
   @Get(':id')
   @ApiOperation({ summary: 'Get team by ID' })

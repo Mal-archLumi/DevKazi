@@ -46,14 +46,14 @@ class BrowseTeamCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        image: team.logoUrl != null
+        image: team.logoUrl != null && team.logoUrl!.isNotEmpty
             ? DecorationImage(
                 image: NetworkImage(team.logoUrl!),
                 fit: BoxFit.cover,
               )
             : null,
       ),
-      child: team.logoUrl == null
+      child: team.logoUrl == null || team.logoUrl!.isEmpty
           ? Center(
               child: Text(
                 team.initial,
@@ -67,6 +67,7 @@ class BrowseTeamCard extends StatelessWidget {
     );
   }
 
+  // Rest of the file remains the same...
   Widget _buildTeamInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

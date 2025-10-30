@@ -1,4 +1,5 @@
 // core/injection_container.dart
+import 'package:frontend/features/teams/domain/use_cases/get_browse_teams_usecase.dart';
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -108,6 +109,9 @@ Future<void> initDependencies() async {
   getIt.registerLazySingleton<JoinTeamUseCase>(
     () => JoinTeamUseCase(getIt<TeamRepository>()),
   );
+  getIt.registerLazySingleton<GetBrowseTeamsUseCase>(
+    () => GetBrowseTeamsUseCase(getIt<TeamRepository>()),
+  );
 
   // Blocs/Cubits
   getIt.registerFactory<TeamsCubit>(
@@ -124,7 +128,8 @@ Future<void> initDependencies() async {
   getIt.registerFactory<BrowseTeamsCubit>(
     () => BrowseTeamsCubit(
       getAllTeams: getIt<GetAllTeamsUseCase>(),
-      joinTeamUseCase: getIt<JoinTeamUseCase>(), // Fixed parameter name
+      getUserTeams: getIt<GetUserTeamsUseCase>(),
+      joinTeamUseCase: getIt<JoinTeamUseCase>(),
     ),
   );
 }

@@ -21,6 +21,14 @@ interface TeamResponse {
   memberCount: number;
   createdAt: Date;
   lastActivity: Date;
+  description?: string; // Added for the new method
+  owner?: {
+    id: string;
+    name: string;
+    email: string;
+  }; // Added for the new method
+  inviteCode?: string; // Added for the new method
+  isMember?: boolean; // Added for the new method
 }
 
 @Injectable()
@@ -459,4 +467,84 @@ export class TeamsService {
     }
     return team;
   }
+
+ async findAll(): Promise<any[]> {
+  try {
+    const teams = await this.teamModel
+      .find()
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .sort({ lastActivity: -1 })
+      .exec();
+
+    return teams.map(team => {
+      const owner = team.owner as any; // Populated user or undefined
+
+      return {
+        id: team._id.toString(),
+        name: team.name,
+        description: team.description,
+        logoUrl: team.logoUrl,
+        memberCount: team.members.length,
+        createdAt: (team as any).createdAt,
+        lastActivity: team.lastActivity,
+        owner: owner
+          ? {
+              id: owner._id?.toString() || this.getUserId(owner),
+              name: owner.name || 'Unknown',
+              email: owner.email || 'unknown@example.com',
+            }
+          : {
+              id: 'unknown',
+              name: 'Deleted User',
+              email: 'deleted@example.com',
+            },
+      };
+    });
+  } catch (error) {
+    console.log('findAll ERROR:', error.message);
+    throw new InternalServerErrorException('Failed to fetch teams');
+  }
+}
+
+
+  async getAllTeamsExceptUser(userId: string): Promise<any[]> {
+  try {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    // Get all teams where the user is NOT a member
+    const teams = await this.teamModel
+      .find({
+        'members.user': { $ne: new Types.ObjectId(userId) }
+      })
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .sort({ lastActivity: -1 })
+      .exec();
+
+    return teams.map(team => ({
+      id: team._id.toString(),
+      name: team.name,
+      description: team.description,
+      logoUrl: team.logoUrl,
+      memberCount: team.members.length,
+      createdAt: (team as any).createdAt,
+      lastActivity: team.lastActivity,
+      owner: {
+        id: this.getUserId(team.owner),
+        name: (team.owner as any).name,
+        email: (team.owner as any).email,
+      },
+      isMember: false,
+    }));
+  } catch (error) {
+    this.logger.error(`Failed to fetch browse teams for user ${userId}: ${error.message}`);
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new InternalServerErrorException('Failed to fetch teams');
+  }
+}
 }

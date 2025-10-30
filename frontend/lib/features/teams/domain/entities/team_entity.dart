@@ -1,13 +1,13 @@
-// domain/entities/team_entity.dart
-import 'package:equatable/equatable.dart';
-
-class TeamEntity extends Equatable {
+// features/teams/domain/entities/team_entity.dart
+class TeamEntity {
   final String id;
   final String name;
   final String? description;
   final String? logoUrl;
   final int memberCount;
   final DateTime createdAt;
+  final DateTime lastActivity;
+  final String? ownerName;
   final bool isMember;
 
   const TeamEntity({
@@ -17,10 +17,37 @@ class TeamEntity extends Equatable {
     this.logoUrl,
     required this.memberCount,
     required this.createdAt,
+    required this.lastActivity,
+    this.ownerName,
     this.isMember = false,
   });
 
+  // Get the first letter of the team name for the avatar
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : 'T';
+
+  // Add fromJson method
+  factory TeamEntity.fromJson(Map<String, dynamic> json) {
+    return TeamEntity(
+      id: json['id'] ?? json['_id'] ?? '',
+      name: json['name'] ?? '',
+      description: json['description'],
+      logoUrl: json['logoUrl'],
+      memberCount: json['memberCount'] ?? 1,
+      createdAt: _parseDateTime(json['createdAt']),
+      lastActivity: _parseDateTime(json['lastActivity'] ?? json['createdAt']),
+      ownerName: json['owner'] != null
+          ? (json['owner'] is String ? json['owner'] : json['owner']['name'])
+          : null,
+      isMember: json['isMember'] ?? false,
+    );
+  }
+
+  static DateTime _parseDateTime(dynamic date) {
+    if (date == null) return DateTime.now();
+    if (date is String) return DateTime.parse(date);
+    if (date is int) return DateTime.fromMillisecondsSinceEpoch(date);
+    return DateTime.now();
+  }
 
   TeamEntity copyWith({
     String? id,
@@ -29,6 +56,8 @@ class TeamEntity extends Equatable {
     String? logoUrl,
     int? memberCount,
     DateTime? createdAt,
+    DateTime? lastActivity,
+    String? ownerName,
     bool? isMember,
   }) {
     return TeamEntity(
@@ -38,30 +67,40 @@ class TeamEntity extends Equatable {
       logoUrl: logoUrl ?? this.logoUrl,
       memberCount: memberCount ?? this.memberCount,
       createdAt: createdAt ?? this.createdAt,
+      lastActivity: lastActivity ?? this.lastActivity,
+      ownerName: ownerName ?? this.ownerName,
       isMember: isMember ?? this.isMember,
     );
   }
 
-  factory TeamEntity.fromJson(Map<String, dynamic> json) {
-    return TeamEntity(
-      id: json['id'],
-      name: json['name'],
-      description: json['description'],
-      logoUrl: json['logoUrl'],
-      memberCount: json['memberCount'] ?? 0,
-      createdAt: DateTime.parse(json['createdAt']),
-      isMember: json['isMember'] ?? false,
-    );
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is TeamEntity &&
+        other.id == id &&
+        other.name == name &&
+        other.description == description &&
+        other.logoUrl == logoUrl &&
+        other.memberCount == memberCount &&
+        other.createdAt == createdAt &&
+        other.lastActivity == lastActivity &&
+        other.ownerName == ownerName &&
+        other.isMember == isMember;
   }
 
   @override
-  List<Object?> get props => [
-    id,
-    name,
-    description,
-    logoUrl,
-    memberCount,
-    createdAt,
-    isMember,
-  ];
+  int get hashCode {
+    return Object.hash(
+      id,
+      name,
+      description,
+      logoUrl,
+      memberCount,
+      createdAt,
+      lastActivity,
+      ownerName,
+      isMember,
+    );
+  }
 }

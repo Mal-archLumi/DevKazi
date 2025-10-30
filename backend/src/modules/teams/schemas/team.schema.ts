@@ -12,6 +12,9 @@ export class Team {
   @Prop({ trim: true, maxlength: 500 })
   description: string;
 
+  @Prop()
+  logoUrl: string;
+
   @Prop({ type: [{ type: String }], default: [] })
   skills: string[];
 

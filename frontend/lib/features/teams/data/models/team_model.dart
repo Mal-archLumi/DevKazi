@@ -9,6 +9,8 @@ class TeamModel extends TeamEntity {
     String? logoUrl,
     required int memberCount,
     required DateTime createdAt,
+    required DateTime lastActivity,
+    String? ownerName,
     bool isMember = false,
   }) : super(
          id: id,
@@ -17,6 +19,8 @@ class TeamModel extends TeamEntity {
          logoUrl: logoUrl,
          memberCount: memberCount,
          createdAt: createdAt,
+         lastActivity: lastActivity,
+         ownerName: ownerName,
          isMember: isMember,
        );
 
@@ -28,6 +32,10 @@ class TeamModel extends TeamEntity {
       logoUrl: json['logoUrl'],
       memberCount: json['memberCount'] ?? 1,
       createdAt: _parseDateTime(json['createdAt']),
+      lastActivity: _parseDateTime(json['lastActivity'] ?? json['createdAt']),
+      ownerName: json['owner'] != null
+          ? (json['owner'] is String ? json['owner'] : json['owner']['name'])
+          : null,
       isMember: json['isMember'] ?? false,
     );
   }
@@ -47,6 +55,8 @@ class TeamModel extends TeamEntity {
       'logoUrl': logoUrl,
       'memberCount': memberCount,
       'createdAt': createdAt.toIso8601String(),
+      'lastActivity': lastActivity.toIso8601String(),
+      'ownerName': ownerName,
       'isMember': isMember,
     };
   }

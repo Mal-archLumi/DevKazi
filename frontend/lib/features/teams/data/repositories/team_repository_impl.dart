@@ -182,4 +182,39 @@ class TeamRepositoryImpl implements TeamRepository {
       return Left(ServerFailure('Unexpected error: $e'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<TeamEntity>>> getBrowseTeams() async {
+    try {
+      log(
+        '🟡 TeamRepositoryImpl: Checking network connection for get browse teams...',
+      );
+      if (await networkInfo.isConnected) {
+        log(
+          '🟢 TeamRepositoryImpl: Network connected, fetching browse teams...',
+        );
+        final remoteTeams = await remoteDataSource.getBrowseTeams();
+        log(
+          '🟢 TeamRepositoryImpl: Successfully fetched ${remoteTeams.length} browse teams',
+        );
+        return Right(remoteTeams);
+      } else {
+        log(
+          '🔴 TeamRepositoryImpl: No internet connection for get browse teams',
+        );
+        return Left(NetworkFailure());
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl: ServerException during get browse teams - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e, stackTrace) {
+      log(
+        '🔴 TeamRepositoryImpl: Unexpected error during get browse teams - $e',
+      );
+      log('🔴 Stack trace: $stackTrace');
+      return Left(ServerFailure('Unexpected error: $e'));
+    }
+  }
 }

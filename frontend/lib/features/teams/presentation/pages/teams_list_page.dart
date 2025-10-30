@@ -24,13 +24,62 @@ class TeamsListPage extends StatefulWidget {
 class _TeamsListPageState extends State<TeamsListPage> {
   int _currentIndex = 0;
   final GlobalKey<_TeamsListBodyState> _teamsListKey = GlobalKey();
+  final PageController _pageController = PageController();
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController.addListener(_onPageChanged);
+  }
+
+  @override
+  void dispose() {
+    _pageController.removeListener(_onPageChanged);
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged() {
+    final newIndex = _pageController.page?.round() ?? 0;
+    if (newIndex != _currentIndex) {
+      setState(() {
+        _currentIndex = newIndex;
+      });
+    }
+  }
+
+  void _onBottomNavTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       // Only show app bar for the first tab (My Teams)
       appBar: _currentIndex == 0 ? _buildMyTeamsAppBar() : null,
-      body: _buildCurrentPage(),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        children: [
+          TeamsListBody(key: _teamsListKey),
+          BrowseTeamsPage(onCreateTeamPressed: _navigateToCreateTeam),
+          Container(
+            alignment: Alignment.center,
+            child: const Text('Profile Page'),
+          ),
+        ],
+      ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -67,22 +116,6 @@ class _TeamsListPageState extends State<TeamsListPage> {
     );
   }
 
-  Widget _buildCurrentPage() {
-    switch (_currentIndex) {
-      case 0:
-        return TeamsListBody(key: _teamsListKey);
-      case 1:
-        return BrowseTeamsPage(onCreateTeamPressed: _navigateToCreateTeam);
-      case 2:
-        return Container(
-          alignment: Alignment.center,
-          child: const Text('Profile Page'),
-        );
-      default:
-        return TeamsListBody(key: _teamsListKey);
-    }
-  }
-
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
@@ -96,7 +129,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
       ),
       child: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _onBottomNavTapped,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Theme.of(context).colorScheme.surface,
         selectedItemColor: Theme.of(context).colorScheme.primary,

@@ -1,3 +1,4 @@
+// team.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
@@ -32,9 +33,6 @@ export class Team {
     joinedAt: Date;
   }>;
 
-  @Prop({ required: true, unique: true })
-  inviteCode: string;
-
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   owner: Types.ObjectId | User;
 
@@ -45,7 +43,6 @@ export class Team {
 export const TeamSchema = SchemaFactory.createForClass(Team);
 
 // Indexes for better performance
-TeamSchema.index({ inviteCode: 1 }, { unique: true });
 TeamSchema.index({ 'members.user': 1 });
 TeamSchema.index({ lastActivity: -1 });
 TeamSchema.index({ owner: 1 });

@@ -1,5 +1,7 @@
 // features/teams/domain/entities/team_entity.dart
-class TeamEntity {
+import 'package:equatable/equatable.dart';
+
+class TeamEntity extends Equatable {
   final String id;
   final String name;
   final String? description;
@@ -9,6 +11,7 @@ class TeamEntity {
   final DateTime lastActivity;
   final String? ownerName;
   final bool isMember;
+  final String? inviteCode;
 
   const TeamEntity({
     required this.id,
@@ -20,6 +23,7 @@ class TeamEntity {
     required this.lastActivity,
     this.ownerName,
     this.isMember = false,
+    this.inviteCode,
   });
 
   // Get the first letter of the team name for the avatar
@@ -39,6 +43,7 @@ class TeamEntity {
           ? (json['owner'] is String ? json['owner'] : json['owner']['name'])
           : null,
       isMember: json['isMember'] ?? false,
+      inviteCode: json['inviteCode'],
     );
   }
 
@@ -59,6 +64,7 @@ class TeamEntity {
     DateTime? lastActivity,
     String? ownerName,
     bool? isMember,
+    String? inviteCode,
   }) {
     return TeamEntity(
       id: id ?? this.id,
@@ -70,37 +76,21 @@ class TeamEntity {
       lastActivity: lastActivity ?? this.lastActivity,
       ownerName: ownerName ?? this.ownerName,
       isMember: isMember ?? this.isMember,
+      inviteCode: inviteCode ?? this.inviteCode,
     );
   }
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is TeamEntity &&
-        other.id == id &&
-        other.name == name &&
-        other.description == description &&
-        other.logoUrl == logoUrl &&
-        other.memberCount == memberCount &&
-        other.createdAt == createdAt &&
-        other.lastActivity == lastActivity &&
-        other.ownerName == ownerName &&
-        other.isMember == isMember;
-  }
-
-  @override
-  int get hashCode {
-    return Object.hash(
-      id,
-      name,
-      description,
-      logoUrl,
-      memberCount,
-      createdAt,
-      lastActivity,
-      ownerName,
-      isMember,
-    );
-  }
+  List<Object?> get props => [
+    id,
+    name,
+    description,
+    logoUrl,
+    memberCount,
+    createdAt,
+    lastActivity,
+    ownerName,
+    isMember,
+    inviteCode,
+  ];
 }

@@ -1,9 +1,9 @@
 // core/injection_container.dart
-import 'package:frontend/features/teams/domain/use_cases/get_browse_teams_usecase.dart';
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // ✅ Added
 
 // Core
 import './network/network_info.dart';
@@ -33,6 +33,14 @@ import '../../features/teams/presentation/blocs/browse_teams/browse_teams_cubit.
 final getIt = GetIt.instance;
 
 Future<void> initDependencies() async {
+  // ✅ Load environment variables (make sure dotenv is initialized in main.dart)
+  await dotenv.load(fileName: ".env");
+
+  // ✅ Read API URL from .env or fallback to ngrok URL
+  final baseUrl =
+      dotenv.env['API_URL'] ??
+      'https://fattiest-ebony-supplely.ngrok-free.dev/api/v1';
+
   // Core dependencies
   getIt.registerLazySingleton<FlutterSecureStorage>(
     () => const FlutterSecureStorage(),
@@ -44,11 +52,7 @@ Future<void> initDependencies() async {
     () => NetworkInfoImpl(getIt<Connectivity>()),
   );
 
-  getIt.registerLazySingleton<ApiClient>(
-    () => ApiClient(
-      baseUrl: 'https://fattiest-ebony-supplely.ngrok-free.dev/api/v1',
-    ),
-  );
+  getIt.registerLazySingleton<ApiClient>(() => ApiClient(baseUrl: baseUrl));
 
   // Auth dependencies
   getIt.registerLazySingleton<AuthRepository>(
@@ -108,9 +112,6 @@ Future<void> initDependencies() async {
 
   getIt.registerLazySingleton<JoinTeamUseCase>(
     () => JoinTeamUseCase(getIt<TeamRepository>()),
-  );
-  getIt.registerLazySingleton<GetBrowseTeamsUseCase>(
-    () => GetBrowseTeamsUseCase(getIt<TeamRepository>()),
   );
 
   // Blocs/Cubits

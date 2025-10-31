@@ -10,13 +10,9 @@ import '/../../core/network/api_client.dart';
 abstract class TeamRemoteDataSource {
   Future<List<TeamEntity>> getUserTeams();
   Future<List<TeamEntity>> searchTeams(String query);
-  Future<TeamEntity> createTeam(
-    String name,
-    String? description,
-  ); // CHANGED: Return TeamEntity
+  Future<TeamEntity> createTeam(String name, String? description);
   Future<List<TeamEntity>> getAllTeams();
   Future<void> joinTeam(String teamId);
-  Future<List<TeamEntity>> getBrowseTeams();
 }
 
 class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
@@ -42,6 +38,11 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
         log(
           '🟢 TeamRemoteDataSource: API call successful, parsing ${response.data!.length} teams',
         );
+
+        // DEBUG: Print first team to see structure
+        if (response.data!.isNotEmpty) {
+          log('🟢 FIRST TEAM DATA: ${response.data!.first}');
+        }
 
         final teams = response.data!
             .map(
@@ -125,7 +126,6 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
 
   @override
   Future<TeamEntity> createTeam(String name, String? description) async {
-    // CHANGED: Return TeamEntity
     try {
       log(
         '🟡 TeamRemoteDataSource: Creating team - name: $name, description: $description',
@@ -133,7 +133,10 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
 
       final response = await client.post(
         '/teams',
-        data: {'name': name, 'description': description},
+        data: {
+          'name': name,
+          'description': description ?? '', // Backend expects description
+        },
         requiresAuth: true,
       );
 
@@ -145,6 +148,7 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
         log('🟢 TeamRemoteDataSource: Team created successfully');
         // Parse and return the created team
         final teamData = response.data as Map<String, dynamic>;
+        log('🟢 CREATED TEAM DATA: $teamData');
         final team = TeamModel.fromJson(teamData);
         return team;
       } else {
@@ -165,55 +169,12 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   }
 
   @override
-  Future<List<TeamEntity>> getAllTeams() async {
-    try {
-      log('TeamRemoteDataSource: Making API call to /teams');
-
-      final response = await client.get<List<dynamic>>(
-        '/teams',
-        requiresAuth: true,
-      );
-
-      log(
-        'TeamRemoteDataSource: API Response - Status: ${response.statusCode}',
-      );
-
-      if (response.isSuccess && response.data != null) {
-        // FIXED: Backend returns array directly
-        final List<dynamic> data = response.data!;
-        log(
-          'TeamRemoteDataSource: API call successful, parsing ${data.length} teams',
-        );
-
-        final teams = data
-            .map((json) => TeamModel.fromJson(json as Map<String, dynamic>))
-            .toList();
-
-        log('TeamRemoteDataSource: Successfully parsed ${teams.length} teams');
-        return teams;
-      } else {
-        log(
-          'TeamRemoteDataSource: API call failed - Status: ${response.statusCode}',
-        );
-        throw ServerException(
-          response.message ?? 'Failed to load teams: ${response.statusCode}',
-        );
-      }
-    } on ServerException {
-      rethrow;
-    } catch (e, stackTrace) {
-      log('Network error: $e\n$stackTrace');
-      throw ServerException('Network error: $e');
-    }
-  }
-
-  @override
   Future<void> joinTeam(String teamId) async {
     try {
       log('🟡 TeamRemoteDataSource: Joining team - teamId: $teamId');
 
       final response = await client.post(
-        '/teams/$teamId/join',
+        '/teams/join/$teamId',
         requiresAuth: true,
       );
 
@@ -241,53 +202,45 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   }
 
   @override
-  Future<List<TeamEntity>> getBrowseTeams() async {
+  Future<List<TeamEntity>> getAllTeams() async {
     try {
-      print(
-        '🟡 TeamRemoteDataSource: Using WORKING /teams/my-teams endpoint for browse teams...',
-      );
+      log('TeamRemoteDataSource: Making API call to /teams');
 
-      // Use the WORKING /teams/my-teams endpoint
       final response = await client.get<List<dynamic>>(
-        '/teams/my-teams',
+        '/teams',
         requiresAuth: true,
       );
 
-      print('🟢 TeamRemoteDataSource: Response status: ${response.statusCode}');
+      log(
+        'TeamRemoteDataSource: API Response - Status: ${response.statusCode}',
+      );
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> data = response.data!;
-        print(
-          '🟢 TeamRemoteDataSource: Found ${data.length} user teams from /teams/my-teams',
+        log(
+          '🟢 TeamRemoteDataSource: API call successful, parsing ${response.data!.length} teams',
         );
 
-        // Get ALL teams from a different source - for now return empty
-        // We'll filter user teams on the frontend from getAllTeams
-        final teams = data
+        final teams = response.data!
             .map(
               (teamJson) =>
                   TeamModel.fromJson(teamJson as Map<String, dynamic>),
             )
             .toList();
 
-        print(
-          '🟢 TeamRemoteDataSource: Successfully parsed ${teams.length} user teams',
-        );
+        log('TeamRemoteDataSource: Successfully parsed ${teams.length} teams');
         return teams;
       } else {
-        print(
-          '🔴 TeamRemoteDataSource: API call failed - Status: ${response.statusCode}',
+        log(
+          'TeamRemoteDataSource: API call failed - Status: ${response.statusCode}',
         );
         throw ServerException(
-          'Failed to load user teams: ${response.statusCode}',
+          response.message ?? 'Failed to load teams: ${response.statusCode}',
         );
       }
-    } on ServerException catch (e) {
-      print('🔴 TeamRemoteDataSource: ServerException - ${e.message}');
+    } on ServerException {
       rethrow;
     } catch (e, stackTrace) {
-      print('🔴 TeamRemoteDataSource: Network error - $e');
-      print('🔴 Stack trace: $stackTrace');
+      log('Network error: $e\n$stackTrace');
       throw ServerException('Network error: $e');
     }
   }

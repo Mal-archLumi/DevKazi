@@ -3,18 +3,19 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:frontend/app/app.dart';
 import 'package:frontend/core/injection_container.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initDependencies();
 
   try {
-    // Load .env file with error handling
+    // ✅ Load .env first before initializing dependencies
     await dotenv.load(fileName: '.env');
-    print('Environment variables loaded successfully');
+    print('✅ Environment variables loaded successfully');
   } catch (e) {
-    print('Error loading .env file: $e');
-    // Continue without .env file - your app should handle missing env vars
+    print('⚠️ Error loading .env file: $e');
   }
+
+  // ✅ Now initialize dependencies (depends on .env)
+  await initDependencies();
 
   runApp(const DevKaziApp());
 }

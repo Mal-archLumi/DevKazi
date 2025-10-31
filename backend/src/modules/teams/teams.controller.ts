@@ -1,3 +1,4 @@
+// teams.controller.ts
 import {
   Controller,
   Get,
@@ -14,7 +15,6 @@ import { TeamsService } from './teams.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
-import { InviteMemberDto } from './dto/invite-member.dto';
 import { 
   ApiTags, 
   ApiOperation, 
@@ -109,54 +109,17 @@ async getAllTeamsExceptUser(@Request() req) {
     return this.teamsService.remove(id, req.user.userId);
   }
 
-  @Post(':id/invite')
-  @ApiOperation({ summary: 'Invite member to team via email' })
-  @ApiParam({ name: 'id', type: String, description: 'Team ID' })
-  @ApiResponse({ status: 200, description: 'Member invited successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Team not found' })
-  async inviteMember(
-    @Param('id') id: string, 
-    @Body() inviteMemberDto: InviteMemberDto, 
-    @Request() req
-  ) {
-    return this.teamsService.inviteMember(id, inviteMemberDto, req.user.userId);
-  }
-
-  @Post('join/:inviteCode')
-  @ApiOperation({ summary: 'Join team using invite code' })
-  @ApiParam({ name: 'inviteCode', type: String, description: 'Team invite code' })
+  @Post('join/:teamId') // CHANGED: inviteCode → teamId
+  @ApiOperation({ summary: 'Join team using team ID' })
+  @ApiParam({ name: 'teamId', type: String, description: 'Team ID' }) // CHANGED
   @ApiResponse({ status: 200, description: 'Joined team successfully' })
   @ApiResponse({ status: 404, description: 'Team not found' })
   async joinTeam(
-    @Param('inviteCode') inviteCode: string, 
+    @Param('teamId') teamId: string, // CHANGED: inviteCode → teamId
     @Request() req
   ) {
-    return this.teamsService.joinTeam(inviteCode, req.user.userId);
+    return this.teamsService.joinTeam(teamId, req.user.userId); // CHANGED
   }
 
-  @Delete(':id/members/:memberId')
-  @ApiOperation({ summary: 'Remove member from team' })
-  @ApiParam({ name: 'id', type: String, description: 'Team ID' })
-  @ApiParam({ name: 'memberId', type: String, description: 'Member ID to remove' })
-  @ApiResponse({ status: 200, description: 'Member removed successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Team or member not found' })
-  async removeMember(
-    @Param('id') id: string, 
-    @Param('memberId') memberId: string, 
-    @Request() req
-  ) {
-    return this.teamsService.removeMember(id, memberId, req.user.userId);
-  }
-
-  @Post(':id/regenerate-invite')
-  @ApiOperation({ summary: 'Regenerate team invite code' })
-  @ApiParam({ name: 'id', type: String, description: 'Team ID' })
-  @ApiResponse({ status: 200, description: 'Invite code regenerated' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Team not found' })
-  async regenerateInviteCode(@Param('id') id: string, @Request() req) {
-    return this.teamsService.regenerateInviteCode(id, req.user.userId);
-  }
+  // Remove inviteMember and regenerateInviteCode endpoints
 }

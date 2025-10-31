@@ -12,6 +12,9 @@ import 'package:frontend/features/notifications/presentation/pages/notifications
 import 'package:frontend/features/user/presentation/pages/profile_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/core/injection_container.dart'; // ADD THIS IMPORT
+import 'package:frontend/features/teams/presentation/pages/team_details_page.dart';
+import 'package:frontend/features/teams/presentation/blocs/team_details/team_details_cubit.dart';
+import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -41,6 +44,15 @@ class AppRouter {
           settings,
         );
 
+      case RouteConstants.teamDetails:
+        final team = settings.arguments as TeamEntity;
+        return _buildRoute(
+          BlocProvider(
+            create: (context) => TeamDetailsCubit(), // Remove TeamRepository
+            child: TeamDetailsPage(team: team),
+          ),
+          settings,
+        );
       case RouteConstants.notifications:
         return _buildRoute(const NotificationsPage(), settings);
 

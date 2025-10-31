@@ -13,6 +13,8 @@ import 'package:frontend/core/injection_container.dart';
 import 'package:logger/logger.dart';
 import '../widgets/team_card.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
+import 'package:frontend/core/constants/route_constants.dart';
+import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 
 class TeamsListPage extends StatefulWidget {
   const TeamsListPage({super.key});
@@ -436,14 +438,18 @@ class _TeamsListBodyState extends State<TeamsListBody> {
           ),
           child: TeamCard(
             team: team,
-            onTap: () => _navigateToTeamDetails(team.id),
+            onTap: () =>
+                _navigateToTeamDetails(team), // Pass the whole team object
           ),
         );
       }, childCount: teamsToShow.length),
     );
   }
 
-  void _navigateToTeamDetails(String teamId) {
-    // Navigate to team details page
+  void _navigateToTeamDetails(TeamEntity team) {
+    Navigator.of(context).pushNamed(
+      RouteConstants.teamDetails,
+      arguments: team, // Pass the whole team object
+    );
   }
 }

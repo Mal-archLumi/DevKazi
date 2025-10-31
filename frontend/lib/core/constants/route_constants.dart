@@ -17,4 +17,5 @@ class RouteConstants {
   static const String chat = '/chat';
   static const String projects = '/projects';
   static const String notifications = '/notifications';
+  static const String teamDetails = '/team-details';
 }

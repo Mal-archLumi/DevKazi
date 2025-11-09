@@ -15,7 +15,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectModel(User.name) private userModel: Model<User>,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (request: any) => {
+          // 1. WebSocket: handshake.auth.token
+          if (request?.handshake?.auth?.token) {
+            return request.handshake.auth.token;
+          }
+          // 2. HTTP: Bearer token
+          if (request?.headers?.authorization?.startsWith('Bearer ')) {
+            return request.headers.authorization.split(' ')[1];
+          }
+          // 3. Cookie fallback (optional)
+          return request?.cookies?.access_token || null;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET') || 'fallback-secret',
     });

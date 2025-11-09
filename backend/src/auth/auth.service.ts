@@ -5,10 +5,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../modules/users/schemas/user.schema';
 import * as bcryptjs from 'bcryptjs';
-import * as nodemailer from 'nodemailer'; // Added for email sending
+import * as nodemailer from 'nodemailer';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { ConfigService } from '@nestjs/config'; // Added for SMTP config
+import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 
 @Injectable()
@@ -19,7 +19,7 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
-    private configService: ConfigService, // Added for nodemailer
+    private configService: ConfigService,
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_WEB_CLIENT_ID);
   }
@@ -45,7 +45,7 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcryptjs.hash(password, 12);
 
-    // Create user - no roles, simplified fields
+    // Create user
     const user = await this.userModel.create({
       email: email.toLowerCase(),
       password: hashedPassword,
@@ -55,9 +55,8 @@ export class AuthService {
       isActive: true,
     });
 
-    // Generate tokens
-    const userId = this.getUserId(user);
-    const tokens = await this.generateTokens(userId);
+    // Generate tokens with enhanced payload
+    const tokens = await this.generateTokens(user);
 
     // Return user without sensitive data
     const userResponse = this.sanitizeUser(user);
@@ -102,9 +101,8 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate tokens
-    const userId = this.getUserId(user);
-    const tokens = await this.generateTokens(userId);
+    // Generate tokens with enhanced payload
+    const tokens = await this.generateTokens(user);
 
     // Return sanitized user
     const userResponse = this.sanitizeUser(user);
@@ -193,11 +191,10 @@ export class AuthService {
         throw new UnauthorizedException('Account is deactivated. Please contact support.');
       }
 
-      // Generate tokens
-      const userId = this.getUserId(user);
-      this.logger.log(`Generating tokens for user ID: ${userId}`);
+      // Generate tokens with enhanced payload
+      this.logger.log(`Generating tokens for user ID: ${user._id}`);
       
-      const tokens = await this.generateTokens(userId);
+      const tokens = await this.generateTokens(user);
 
       // Return sanitized user
       const userResponse = this.sanitizeUser(user);
@@ -239,13 +236,12 @@ export class AuthService {
 
       // Check if user needs to re-authenticate
       const tokenIssuedAt = payload.iat * 1000;
-      const userUpdatedAt = this.getUpdatedAt(user);
+      const userUpdatedAt = user.updatedAt;
       if (userUpdatedAt && userUpdatedAt.getTime() > tokenIssuedAt) {
         throw new UnauthorizedException('Session expired. Please login again.');
       }
 
-      const userId = this.getUserId(user);
-      return this.generateTokens(userId);
+      return this.generateTokens(user);
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Refresh token expired');
@@ -287,7 +283,7 @@ export class AuthService {
   }
 
   async logout(userId: string): Promise<{ message: string }> {
-    console.log(`User ${userId} logged out`);
+    this.logger.log(`User ${userId} logged out`);
     return { message: 'Logged out successfully' };
   }
 
@@ -336,9 +332,8 @@ export class AuthService {
     }
 
     // Generate reset token
-    const userId = this.getUserId(user);
     const resetToken = await this.jwtService.signAsync(
-      { sub: userId, type: 'reset' },
+      { sub: user._id.toString(), type: 'reset' },
       { secret: process.env.JWT_SECRET || 'fallback-secret', expiresIn: '1h' }
     );
 
@@ -408,23 +403,32 @@ export class AuthService {
     }
   }
 
-  private async generateTokens(userId: string): Promise<{
+  private async generateTokens(user: UserDocument): Promise<{
     access_token: string;
     refresh_token: string;
   }> {
+    // Enhanced JWT payload with user data
     const payload = {
-      sub: userId,
+      sub: user._id.toString(),        // Required
+      userId: user._id.toString(),     // Additional identifier
+      email: user.email,               // User email
+      name: user.name,                 // User name
+      isVerified: user.isVerified,     // Verification status
+      // ... add other user data as needed
     };
 
     const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn: process.env.JWT_EXPIRES_IN ? this.parseExpiresIn(process.env.JWT_EXPIRES_IN) : 15 * 60,
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
       secret: process.env.JWT_SECRET || 'fallback-secret',
     });
 
-    const refresh_token = await this.jwtService.signAsync(payload, {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN ? this.parseExpiresIn(process.env.JWT_REFRESH_EXPIRES_IN) : 7 * 24 * 60 * 60,
-      secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
-    });
+    const refresh_token = await this.jwtService.signAsync(
+      { sub: user._id.toString() }, // Simpler payload for refresh token
+      {
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+        secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
+      }
+    );
 
     return { access_token, refresh_token };
   }
@@ -433,37 +437,5 @@ export class AuthService {
     const userObj = user.toObject ? user.toObject() : user;
     const { password, ...userWithoutPassword } = userObj;
     return userWithoutPassword;
-  }
-
-  private getUserId(user: UserDocument): string {
-    const userObj = user as any;
-    if (userObj._id && userObj._id.toString) {
-      return userObj._id.toString();
-    }
-    if (userObj.id) {
-      return userObj.id;
-    }
-    throw new Error('Unable to get user ID');
-  }
-
-  private getUpdatedAt(user: UserDocument): Date | null {
-    const userObj = user as any;
-    return userObj.updatedAt || null;
-  }
-
-  private parseExpiresIn(expiresIn: string): number {
-    const match = expiresIn.match(/^(\d+)([smhd])$/);
-    if (!match) {
-      throw new Error(`Invalid expiresIn format: ${expiresIn}`);
-    }
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    switch (unit) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 60 * 60;
-      case 'd': return value * 60 * 60 * 24;
-      default: throw new Error(`Unknown unit: ${unit}`);
-    }
   }
 }

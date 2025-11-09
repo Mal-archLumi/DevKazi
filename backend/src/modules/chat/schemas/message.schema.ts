@@ -14,9 +14,41 @@ export class Message extends Document {
 
   @Prop({ default: Date.now })
   timestamp: Date;
+
+  // Virtual for teamId
+  get teamId(): string {
+    return this.team.toString();
+  }
+
+  // Virtual for senderId
+  get senderId(): string {
+    return this.sender.toString();
+  }
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
+
+// Add virtuals to schema
+MessageSchema.virtual('teamId').get(function() {
+  return this.team.toString();
+});
+
+MessageSchema.virtual('senderId').get(function() {
+  return this.sender.toString();
+});
+
+// Ensure virtuals are included in JSON
+MessageSchema.set('toJSON', { 
+  virtuals: true,
+  transform: function(doc, ret) {
+    ret.id = ret._id.toString();
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  }
+});
+
+MessageSchema.set('toObject', { virtuals: true });
 
 // Index for better query performance
 MessageSchema.index({ team: 1, timestamp: 1 });

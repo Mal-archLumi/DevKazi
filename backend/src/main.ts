@@ -8,6 +8,7 @@ import { AllExceptionsFilter } from './all-exceptions.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import mongoose from 'mongoose';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -104,6 +105,11 @@ async function bootstrap() {
     }
   });
 }
+mongoose.connect(process.env.MONGODB_URI, {
+  bufferCommands: false,
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+});
 
 bootstrap().catch(err => {
   console.error('Bootstrap failed:', err);

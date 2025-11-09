@@ -1,5 +1,7 @@
+// chat.service.ts
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import * as mongoose from 'mongoose';
 import { Model, Types } from 'mongoose';
 import { Message } from './schemas/message.schema';
 
@@ -7,12 +9,32 @@ import { Message } from './schemas/message.schema';
 export class ChatService {
   constructor(@InjectModel(Message.name) private messageModel: Model<Message>) {}
 
+  // FIXED: Use string directly since Mongoose handles ObjectId conversion
+  async saveMessage(data: { teamId: string; senderId: string; content: string }): Promise<Message> {
+    if (!data.teamId || !data.senderId || !data.content?.trim()) {
+      throw new BadRequestException('teamId, senderId, and content are required');
+    }
+
+    // FIX: Use Types.ObjectId.isValid correctly
+    if (!this.isValidObjectId(data.teamId) || !this.isValidObjectId(data.senderId)) {
+      throw new BadRequestException('Invalid teamId or senderId');
+    }
+
+    const message = new this.messageModel({
+      team: data.teamId, // Mongoose automatically converts to ObjectId
+      sender: data.senderId, // Mongoose automatically converts to ObjectId
+      content: data.content.trim(),
+      timestamp: new Date(),
+    });
+
+    return await message.save();
+  }
+
   async createMessage(createMessageDto: { 
     team: string; 
     sender: string; 
     content: string;
   }): Promise<Message> {
-    // Validate input
     if (!createMessageDto.team || !createMessageDto.sender || !createMessageDto.content) {
       throw new BadRequestException('Team, sender, and content are required');
     }
@@ -25,9 +47,14 @@ export class ChatService {
       throw new BadRequestException('Message too long (max 1000 characters)');
     }
 
+    // FIX: Use Types.ObjectId.isValid correctly
+    if (!this.isValidObjectId(createMessageDto.team) || !this.isValidObjectId(createMessageDto.sender)) {
+      throw new BadRequestException('Invalid team or sender ID');
+    }
+
     const message = new this.messageModel({
-      team: new Types.ObjectId(createMessageDto.team),
-      sender: new Types.ObjectId(createMessageDto.sender),
+      team: createMessageDto.team, // Mongoose handles conversion
+      sender: createMessageDto.sender, // Mongoose handles conversion
       content: createMessageDto.content.trim(),
       timestamp: new Date(),
     });
@@ -36,28 +63,41 @@ export class ChatService {
   }
 
   async getTeamMessages(teamId: string, limit: number = 100): Promise<Message[]> {
-    if (!Types.ObjectId.isValid(teamId)) {
+    // FIX: Use Types.ObjectId.isValid correctly
+    if (!this.isValidObjectId(teamId)) {
       throw new BadRequestException('Invalid team ID');
     }
 
     return this.messageModel
-      .find({ team: new Types.ObjectId(teamId) })
-      .populate('sender', 'name email') // Only get name and email from user
-      .sort({ timestamp: 1 }) // Oldest first
+      .find({ team: teamId }) // Mongoose handles ObjectId conversion
+      .populate('sender', 'name email username firstName lastName')
+      .sort({ timestamp: 1 })
       .limit(limit)
       .exec();
   }
 
   async getRecentTeamMessages(teamId: string, limit: number = 50): Promise<Message[]> {
-    if (!Types.ObjectId.isValid(teamId)) {
+    // FIX: Use Types.ObjectId.isValid correctly
+    if (!this.isValidObjectId(teamId)) {
       throw new BadRequestException('Invalid team ID');
     }
 
     return this.messageModel
-      .find({ team: new Types.ObjectId(teamId) })
+      .find({ team: teamId }) // Mongoose handles ObjectId conversion
       .populate('sender', 'name email')
-      .sort({ timestamp: -1 }) // Newest first
+      .sort({ timestamp: -1 })
       .limit(limit)
       .exec();
   }
-}
+
+  async getMessageWithSender(messageId: Types.ObjectId): Promise<Message | null> {
+    return this.messageModel
+      .findById(messageId)
+      .populate('sender', 'name email username firstName lastName')
+      .exec();
+  }
+  // FIX: Helper method to check ObjectId validity
+  private isValidObjectId(id: string): boolean {
+    return mongoose.isValidObjectId(id);
+  }
+  }

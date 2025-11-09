@@ -4,6 +4,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 
 // Import modules
 import { AuthModule } from './auth/auth.module';
@@ -15,6 +17,8 @@ import { ChatModule } from './modules/chat/chat.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
+import { JwtStrategy } from './auth/strategies/jwt.strategy';
+import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy'; // NEW
 
 @Module({
   imports: [
@@ -23,6 +27,19 @@ import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    
+    // JWT module using ConfigService
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET') || 'fallback-secret',
+        signOptions: { expiresIn: '24h' },
+      }),
+      inject: [ConfigService],
+    }),
+    
+    // Passport module for JWT
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     
     // Enhanced Rate limiting with multiple rules
     ThrottlerModule.forRoot([
@@ -43,26 +60,25 @@ import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
       }
     ]),
     
-    // MongoDB connection with timeout and retry logic
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/devkazi', {
-      connectionFactory: (connection) => {
-        connection.on('connected', () => {
-          console.log('MongoDB connected successfully');
-        });
-        connection.on('error', (error: Error) => {
-          console.error('MongoDB connection error:', error);
-        });
-        connection.on('disconnected', () => {
-          console.log('MongoDB disconnected');
-        });
-        return connection;
+    // MongoDB connection
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        const uri = configService.get<string>('MONGODB_URI') || 'mongodb://localhost:27017/devkazi';
+        
+        console.log('🔧 Attempting MongoDB connection to Atlas...');
+        
+        return {
+          uri,
+          serverSelectionTimeoutMS: 30000, // 30 seconds
+          socketTimeoutMS: 45000,
+          connectTimeoutMS: 30000,
+          maxPoolSize: 10,
+          retryWrites: true,
+          retryReads: true,
+        };
       },
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 10,
-      minPoolSize: 5,
-      retryAttempts: 3,
-      retryDelay: 1000,
+      inject: [ConfigService],
     }),
     
     // Feature modules
@@ -74,6 +90,8 @@ import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
   controllers: [AppController],
   providers: [
     AppService,
+    JwtStrategy,
+    WebSocketJwtStrategy, // NEW - Add WebSocket strategy at app level
     {
       provide: APP_GUARD,
       useClass: CustomThrottlerGuard,

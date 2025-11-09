@@ -66,13 +66,14 @@ class CreateTeamCubit extends Cubit<CreateTeamState> {
   }
 
   String _mapFailureToMessage(Failure failure) {
-    switch (failure.runtimeType) {
-      case ServerFailure:
-        return 'Failed to create team. Please try again.';
-      case CacheFailure:
-        return 'No internet connection. Please check your connection.';
-      default:
-        return 'An unexpected error occurred';
+    if (failure is ServerFailure) {
+      return 'Failed to create team. Please try again.';
+    } else if (failure is NetworkFailure) {
+      return 'No internet connection. Please check your connection.';
+    } else if (failure is CacheFailure) {
+      return 'Storage error occurred. Please try again.';
+    } else {
+      return 'An unexpected error occurred';
     }
   }
 }

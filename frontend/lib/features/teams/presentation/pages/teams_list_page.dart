@@ -137,7 +137,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Theme.of(
           context,
-        ).colorScheme.onSurface.withOpacity(0.6),
+        ).colorScheme.onSurface.withValues(alpha: 0.6),
         selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 12,
@@ -152,7 +152,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.1),
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -170,7 +170,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.1),
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -190,7 +190,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.1),
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -317,7 +317,7 @@ class _TeamsListBodyState extends State<TeamsListBody> {
         decoration: InputDecoration(
           hintText: 'Search my teams...',
           hintStyle: TextStyle(
-            color: Colors.green.shade400.withOpacity(0.7),
+            color: Colors.green.shade400.withValues(alpha: 0.7),
             fontSize: 16,
           ),
           prefixIcon: Icon(
@@ -329,7 +329,7 @@ class _TeamsListBodyState extends State<TeamsListBody> {
               ? IconButton(
                   icon: Icon(
                     Icons.close,
-                    color: Colors.green.shade400.withOpacity(0.7),
+                    color: Colors.green.shade400.withValues(alpha: 0.7),
                     size: 20,
                   ),
                   onPressed: _clearSearch,

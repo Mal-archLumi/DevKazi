@@ -20,6 +20,26 @@ class MessageEntity extends Equatable {
     this.type = MessageType.text,
   });
 
+  MessageEntity copyWith({
+    String? id,
+    String? teamId,
+    String? senderId,
+    String? senderName,
+    String? content,
+    DateTime? timestamp,
+    MessageType? type,
+  }) {
+    return MessageEntity(
+      id: id ?? this.id,
+      teamId: teamId ?? this.teamId,
+      senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName,
+      content: content ?? this.content,
+      timestamp: timestamp ?? this.timestamp,
+      type: type ?? this.type,
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:frontend/core/errors/failures.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
+import 'package:frontend/features/auth/domain/entities/tokens_entity.dart'; // Added import for TokensEntity
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
@@ -401,6 +402,13 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<String?> getRefreshToken() async {
     return await _secureStorage.read(key: _refreshTokenKey);
+  }
+
+  @override
+  Future<TokensEntity> getTokens() async {
+    final accessToken = await getAccessToken() ?? '';
+    final refreshToken = await getRefreshToken() ?? '';
+    return TokensEntity(accessToken: accessToken, refreshToken: refreshToken);
   }
 
   // Helper method to parse DateTime from string

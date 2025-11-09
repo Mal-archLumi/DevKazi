@@ -2,6 +2,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
+import 'package:frontend/features/auth/domain/entities/tokens_entity.dart'; // Add this
 import 'package:frontend/features/auth/domain/use_cases/login_usecase.dart';
 import 'package:frontend/features/auth/domain/use_cases/signup_usecase.dart';
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
@@ -17,8 +18,36 @@ class AuthCubit extends Cubit<AuthState> {
     required this.loginUseCase,
     required this.signUpUseCase,
     required this.authRepository,
-  }) : super(AuthInitial());
+  }) : super(AuthInitial()) {
+    // Load saved auth state on initialization
+    _loadSavedAuthState();
+  }
 
+  Future<void> _loadSavedAuthState() async {
+    try {
+      final tokens = await authRepository.getTokens();
+      if (tokens.accessToken.isNotEmpty) {
+        // Verify token is still valid - handle Either type properly
+        final userResult = await authRepository.getCurrentUser();
+        userResult.fold(
+          (failure) {
+            print('Failed to load current user: ${failure.message}');
+            // Keep as AuthInitial if loading fails
+          },
+          (user) {
+            if (user != null) {
+              emit(AuthAuthenticated(user));
+            }
+          },
+        );
+      }
+    } catch (e) {
+      print('Error loading saved auth state: $e');
+      // Keep as AuthInitial if loading fails
+    }
+  }
+
+  // ... rest of your existing methods remain the same
   Future<void> login(String email, String password) async {
     if (state is AuthLoading) return;
 
@@ -79,7 +108,6 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // UPDATED: Use the new loginWithGoogle method
   Future<void> loginWithGoogle() async {
     if (state is AuthLoading) return;
 
@@ -101,7 +129,6 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // Keep this method if you still need direct ID token verification
   Future<void> signUpWithGoogle(String idToken) async {
     if (state is AuthLoading) return;
 

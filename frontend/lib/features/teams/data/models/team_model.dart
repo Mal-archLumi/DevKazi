@@ -2,30 +2,19 @@
 import '../../domain/entities/team_entity.dart';
 
 class TeamModel extends TeamEntity {
-  TeamModel({
+  const TeamModel({
     // REMOVE: const
-    required String id,
-    required String name,
-    String? description,
-    String? logoUrl,
-    required int memberCount,
-    required DateTime createdAt,
-    required DateTime lastActivity,
-    String? ownerName,
-    bool isMember = false,
-    String? inviteCode,
-  }) : super(
-         id: id,
-         name: name,
-         description: description,
-         logoUrl: logoUrl,
-         memberCount: memberCount,
-         createdAt: createdAt,
-         lastActivity: lastActivity,
-         ownerName: ownerName,
-         isMember: isMember,
-         inviteCode: inviteCode,
-       );
+    required super.id,
+    required super.name,
+    super.description,
+    super.logoUrl,
+    required super.memberCount,
+    required super.createdAt,
+    required super.lastActivity,
+    super.ownerName,
+    super.isMember,
+    super.inviteCode,
+  });
 
   factory TeamModel.fromJson(Map<String, dynamic> json) {
     return TeamModel(

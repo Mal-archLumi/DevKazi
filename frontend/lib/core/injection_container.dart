@@ -3,7 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // ✅ Added
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Core
 import './network/network_info.dart';
@@ -29,6 +29,14 @@ import '../../features/teams/domain/use_cases/join_team_usecase.dart';
 import '../../features/teams/presentation/blocs/teams/teams_cubit.dart';
 import '../../features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 import '../../features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
+
+// Chat
+import '../../features/chat/data/data_sources/chat_remote_data_source.dart';
+import '../../features/chat/data/repositories/chat_repository_impl.dart';
+import '../../features/chat/domain/repositories/chat_repository.dart';
+import '../../features/chat/domain/use_cases/get_messages_use_case.dart';
+import '../../features/chat/domain/use_cases/send_message_use_case.dart';
+import '../../features/chat/presentation/cubits/chat_cubit.dart';
 
 final getIt = GetIt.instance;
 
@@ -133,4 +141,37 @@ Future<void> initDependencies() async {
       joinTeamUseCase: getIt<JoinTeamUseCase>(),
     ),
   );
+
+  // Chat dependencies - FIXED: No more socket factory, data source handles it internally
+
+  // Data sources
+  getIt.registerFactory<ChatRemoteDataSource>(
+    () => ChatRemoteDataSourceImpl(networkInfo: getIt<NetworkInfo>()),
+  );
+
+  // Repository
+  getIt.registerFactory<ChatRepository>(
+    () => ChatRepositoryImpl(
+      remoteDataSource: getIt<ChatRemoteDataSource>(),
+      networkInfo: getIt<NetworkInfo>(),
+    ),
+  );
+
+  // Use Cases
+  getIt.registerFactory<GetMessagesUseCase>(
+    () => GetMessagesUseCase(getIt<ChatRepository>()),
+  );
+
+  getIt.registerFactory<SendMessageUseCase>(
+    () => SendMessageUseCase(getIt<ChatRepository>()),
+  );
+
+  // Cubit - Now takes teamId and token as parameters
+  getIt.registerFactoryParam<ChatCubit, String, String>((teamId, token) {
+    return ChatCubit(
+      getMessagesUseCase: getIt<GetMessagesUseCase>(),
+      sendMessageUseCase: getIt<SendMessageUseCase>(),
+      repository: getIt<ChatRepository>(),
+    );
+  });
 }

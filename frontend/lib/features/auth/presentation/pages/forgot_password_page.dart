@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:frontend/core/widgets/common/loaders/loading_overlay.dart';
 import 'package:frontend/features/auth/presentation/widgets/email_field.dart';
 import 'package:http/http.dart' as http;

@@ -58,12 +58,14 @@ class TeamRepositoryImpl implements TeamRepository {
     } on ServerException catch (e) {
       log('🔴 TeamRepositoryImpl: ServerException - ${e.message}');
       return Left(ServerFailure(e.message));
-    } on CacheException catch (e) {
-      log('🔴 TeamRepositoryImpl: CacheException - ${e.message}');
-      return Left(CacheFailure(e.message));
     } catch (e, stackTrace) {
       log('🔴 TeamRepositoryImpl: Unexpected error - $e');
       log('🔴 Stack trace: $stackTrace');
+
+      // Handle cache exceptions and other unexpected errors
+      if (e is CacheException) {
+        return Left(CacheFailure(e.message));
+      }
       return Left(ServerFailure('Unexpected error: $e'));
     }
   }
@@ -83,7 +85,7 @@ class TeamRepositoryImpl implements TeamRepository {
         return Right(teams);
       } else {
         log('🔴 TeamRepositoryImpl: No internet connection for search');
-        return Left(CacheFailure('No internet connection'));
+        return Left(NetworkFailure('No internet connection'));
       }
     } on ServerException catch (e) {
       log(
@@ -113,7 +115,7 @@ class TeamRepositoryImpl implements TeamRepository {
         return Right(team);
       } else {
         log('🔴 TeamRepositoryImpl: No internet connection for create team');
-        return Left(CacheFailure('No internet connection'));
+        return Left(NetworkFailure('No internet connection'));
       }
     } on ServerException catch (e) {
       log(
@@ -142,7 +144,7 @@ class TeamRepositoryImpl implements TeamRepository {
         return Right(remoteTeams);
       } else {
         log('🔴 TeamRepositoryImpl: No internet connection for get all teams');
-        return Left(NetworkFailure());
+        return Left(NetworkFailure('No internet connection'));
       }
     } on ServerException catch (e) {
       log(
@@ -171,7 +173,7 @@ class TeamRepositoryImpl implements TeamRepository {
         return const Right(true);
       } else {
         log('🔴 TeamRepositoryImpl: No internet connection for join team');
-        return Left(NetworkFailure());
+        return Left(NetworkFailure('No internet connection'));
       }
     } on ServerException catch (e) {
       log(

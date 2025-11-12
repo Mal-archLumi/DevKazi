@@ -24,16 +24,46 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   UserEntity? _currentUser;
   bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   bool _hasText = false;
-  late ChatCubit _chatCubit; // Keep reference to the cubit
+  late ChatCubit _chatCubit;
+  String? _previousTeamId;
 
   @override
   void initState() {
     super.initState();
     _messageController.addListener(_onTextChanged);
-    // Get the singleton ChatCubit
     _chatCubit = di.getIt<ChatCubit>();
     _initializeChat();
+  }
+
+  @override
+  void didUpdateWidget(TeamChatsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Handle team switch
+    if (oldWidget.teamId != widget.teamId) {
+      _handleTeamSwitch(oldWidget.teamId);
+    }
+  }
+
+  void _handleTeamSwitch(String oldTeamId) {
+    print('🔄 Switching from team $oldTeamId to ${widget.teamId}');
+    _previousTeamId = oldTeamId;
+
+    // Clear messages immediately to prevent glitch
+    _chatCubit.clearMessages();
+
+    // Set loading state
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Disconnect from old team and connect to new one
+    _chatCubit.disconnectFromChat().then((_) {
+      if (mounted) {
+        _initializeChat();
+      }
+    });
   }
 
   void _onTextChanged() {
@@ -65,7 +95,6 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
             _isLoading = false;
           });
 
-          // Use the singleton cubit instance
           _chatCubit.connectToChat(widget.teamId, widget.accessToken, user);
         },
       );
@@ -78,12 +107,34 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     }
   }
 
+  void _scrollToBottom({bool animate = true}) {
+    if (!_scrollController.hasClients) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        if (animate) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        } else {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      }
+    });
+  }
+
   void _sendMessage() {
     final content = _messageController.text.trim();
     if (content.isNotEmpty) {
-      // Use the singleton cubit instance
       _chatCubit.sendMessage(widget.teamId, content);
       _messageController.clear();
+
+      // Scroll to bottom after sending
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _scrollToBottom(animate: true);
+      });
     }
   }
 
@@ -123,7 +174,6 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
       );
     }
 
-    // Provide the singleton cubit to the widget tree
     return BlocProvider.value(
       value: _chatCubit,
       child: BlocConsumer<ChatCubit, ChatState>(
@@ -133,15 +183,21 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
               SnackBar(
                 content: Text(state.errorMessage ?? 'An error occurred'),
                 backgroundColor: Colors.red,
+                duration: const Duration(seconds: 2),
               ),
             );
+          }
+
+          // Auto-scroll when messages are loaded or received
+          if (state.status == ChatStatus.loaded && state.messages.isNotEmpty) {
+            _scrollToBottom(animate: false);
           }
         },
         builder: (context, state) {
           final isConnected = state.isConnected;
 
           if (state.status == ChatStatus.connecting ||
-              state.status == ChatStatus.loading) {
+              (state.status == ChatStatus.loading && state.messages.isEmpty)) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -202,7 +258,9 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                         ),
                       )
                     : ListView.builder(
+                        controller: _scrollController,
                         itemCount: state.messages.length,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         itemBuilder: (context, index) {
                           final message = state.messages[index];
                           final isCurrentUser =
@@ -217,6 +275,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                               mainAxisAlignment: isCurrentUser
                                   ? MainAxisAlignment.end
                                   : MainAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 if (!isCurrentUser)
                                   CircleAvatar(
@@ -301,13 +360,10 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                                   CircleAvatar(
                                     radius: 16,
                                     backgroundColor: Colors.green,
-                                    child: Text(
-                                      'You',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 16,
+                                      color: Colors.white,
                                     ),
                                   ),
                               ],
@@ -318,43 +374,57 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
               ),
 
               // Message input field
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        decoration: InputDecoration(
-                          hintText: 'Type a message...',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                        onSubmitted: (value) => _sendMessage(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _hasText
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey,
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.send,
-                          color: _hasText ? Colors.white : Colors.white70,
-                        ),
-                        onPressed: _hasText ? _sendMessage : null,
-                      ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, -2),
                     ),
                   ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          decoration: InputDecoration(
+                            hintText: 'Type a message...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                          onSubmitted: (value) => _sendMessage(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _hasText
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey,
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.send,
+                            color: _hasText ? Colors.white : Colors.white70,
+                          ),
+                          onPressed: _hasText ? _sendMessage : null,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -368,7 +438,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   void dispose() {
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
-    // Don't dispose the cubit here since it's a singleton
+    _scrollController.dispose();
     super.dispose();
   }
 }

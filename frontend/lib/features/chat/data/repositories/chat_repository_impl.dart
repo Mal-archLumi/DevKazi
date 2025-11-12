@@ -69,12 +69,24 @@ class ChatRepositoryImpl implements ChatRepository {
         '🔍 Remote data source connected: ${remoteDataSource.isConnected}',
       );
 
+      // The timeout is now handled well in the data source
+      // It will complete successfully even if ACK times out
       await remoteDataSource.sendMessage(teamId, content);
 
-      _logger.i('✅ Message sent successfully');
+      _logger.i('✅ Message send operation completed');
       return const Right(null);
     } catch (e) {
       _logger.e('❌ Error sending message: $e');
+
+      // Only treat as failure if it's a real error, not a timeout
+      if (e is TimeoutException) {
+        // Timeout is handled gracefully, don't return error
+        _logger.w(
+          '⚠️ Send timeout occurred but message may still be delivered',
+        );
+        return const Right(null);
+      }
+
       return Left(ServerFailure('Failed to send message: $e'));
     }
   }

@@ -4,8 +4,6 @@ import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:frontend/core/errors/failures.dart';
-import 'package:frontend/core/errors/exceptions.dart';
-import 'package:frontend/core/network/network_info.dart';
 import 'package:frontend/features/chat/data/models/message_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
@@ -18,11 +16,11 @@ abstract class ChatRemoteDataSource {
   Future<void> sendMessage(String teamId, String content);
   Future<List<MessageModel>> getTeamMessages(String teamId);
   bool get isConnected;
+  String? get currentTeamId;
 }
 
 class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   io.Socket? _socket;
-  final NetworkInfo _networkInfo;
   final StreamController<MessageModel> _messageStreamController =
       StreamController<MessageModel>.broadcast();
   final StreamController<void> _connectedStreamController =
@@ -33,41 +31,66 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   String? _currentToken;
   Completer<void>? _connectionCompleter;
   Timer? _reconnectTimer;
+  bool _isDisposed = false;
 
-  ChatRemoteDataSourceImpl({required NetworkInfo networkInfo})
-    : _networkInfo = networkInfo,
-      _baseUrl =
+  // Track processed message IDs to prevent duplicates
+  final Set<String> _processedMessageIds = {};
+  Timer? _messageCleanupTimer;
+
+  ChatRemoteDataSourceImpl()
+    : _baseUrl =
           dotenv.env['API_URL']?.replaceFirst('/api/v1', '') ??
-          'https://fattiest-ebony-supplely.ngrok-free.dev';
+          'https://fattiest-ebony-supplely.ngrok-free.dev' {
+    // Cleanup old message IDs every 5 minutes
+    _messageCleanupTimer = Timer.periodic(Duration(minutes: 5), (_) {
+      if (_processedMessageIds.length > 1000) {
+        _processedMessageIds.clear();
+      }
+    });
+  }
 
   void _setupSocketListeners() {
-    if (_socket == null) return;
+    if (_socket == null || _isDisposed) return;
+
+    // Remove all existing listeners first to prevent duplicates
+    _socket!.off('connect');
+    _socket!.off('disconnect');
+    _socket!.off('new_message');
+    _socket!.off('error');
+    _socket!.off('connection_success');
+    _socket!.off('joined_team');
+    _socket!.off('connect_error');
+    _socket!.off('authentication_error');
+    _socket!.off('message_sent');
 
     _socket!.onConnect((_) {
-      print('✅ SOCKET CONNECTED - ID: ${_socket!.id}');
+      if (_isDisposed) return;
+      print(
+        '✅ SOCKET CONNECTED - ID: ${_socket!.id} for team: $_currentTeamId',
+      );
       _connectedStreamController.add(null);
 
-      // Complete connection completer
       if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
         _connectionCompleter!.complete();
         _connectionCompleter = null;
       }
 
-      // Cancel any reconnect timer
       _reconnectTimer?.cancel();
       _reconnectTimer = null;
     });
 
     _socket!.onDisconnect((reason) {
-      print('🔴 SOCKET DISCONNECTED: $reason');
+      if (_isDisposed) return;
+      print('🔴 SOCKET DISCONNECTED: $reason for team: $_currentTeamId');
 
-      // Attempt to reconnect if we have credentials
-      if (_currentTeamId != null && _currentToken != null) {
+      if (_currentTeamId != null &&
+          _currentToken != null &&
+          reason != 'io client disconnect') {
         print('🔄 Scheduling reconnect in 3 seconds...');
         _reconnectTimer?.cancel();
         _reconnectTimer = Timer(Duration(seconds: 3), () {
-          if (_currentTeamId != null && _currentToken != null) {
-            print('🔄 Auto-reconnecting...');
+          if (!_isDisposed && _currentTeamId != null && _currentToken != null) {
+            print('🔄 Auto-reconnecting to team: $_currentTeamId');
             connect(_currentTeamId!, _currentToken!);
           }
         });
@@ -82,9 +105,20 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     });
 
     _socket!.on('new_message', (data) {
+      if (_isDisposed) return;
+
       try {
-        print('📨 Received new message: $data');
+        print('📨 Received new message for team $_currentTeamId: $data');
         final message = MessageModel.fromJson(data);
+
+        // Prevent duplicate messages
+        final messageId = message.id;
+        if (_processedMessageIds.contains(messageId)) {
+          print('⚠️ Duplicate message detected, skipping: $messageId');
+          return;
+        }
+
+        _processedMessageIds.add(messageId);
         _messageStreamController.add(message);
       } catch (e) {
         print('❌ PARSE ERROR: $e');
@@ -92,6 +126,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     });
 
     _socket!.on('error', (err) {
+      if (_isDisposed) return;
       print('❌ SOCKET ERROR: $err');
       if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
         _connectionCompleter!.completeError(Exception('Socket error: $err'));
@@ -100,14 +135,17 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     });
 
     _socket!.on('connection_success', (data) {
-      print('🎉 CONNECTION SUCCESS: $data');
+      if (_isDisposed) return;
+      print('🎉 CONNECTION SUCCESS for team $_currentTeamId: $data');
     });
 
     _socket!.on('joined_team', (data) {
+      if (_isDisposed) return;
       print('✅ JOINED TEAM: $data');
     });
 
     _socket!.on('connect_error', (error) {
+      if (_isDisposed) return;
       print('❌ CONNECT ERROR: $error');
       if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
         _connectionCompleter!.completeError(
@@ -118,6 +156,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     });
 
     _socket!.on('authentication_error', (data) {
+      if (_isDisposed) return;
       print('🔐 AUTH ERROR: $data');
       if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
         _connectionCompleter!.completeError(
@@ -128,6 +167,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     });
 
     _socket!.on('message_sent', (data) {
+      if (_isDisposed) return;
       print('✅ MESSAGE SENT CONFIRMATION: $data');
     });
   }
@@ -142,52 +182,60 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   bool get isConnected => _socket?.connected ?? false;
 
   @override
+  String? get currentTeamId => _currentTeamId;
+
+  @override
   Future<void> connect(String teamId, String token) async {
+    if (_isDisposed) {
+      throw Exception('DataSource has been disposed');
+    }
+
+    // If already connected to the same team, don't reconnect
+    if (_socket != null && _socket!.connected && _currentTeamId == teamId) {
+      print('✅ Already connected to team: $teamId');
+      return;
+    }
+
+    // If connecting to a different team, disconnect first
+    if (_currentTeamId != null && _currentTeamId != teamId) {
+      print('🔄 Switching from team $_currentTeamId to $teamId');
+      await disconnect();
+      await Future.delayed(Duration(milliseconds: 500));
+    }
+
     _currentTeamId = teamId;
     _currentToken = token;
 
     print('🔄 Connecting to socket for team: $teamId');
-    print('🔑 Token: ${token.substring(0, 20)}...');
 
     // Cleanup existing socket
-    if (_socket != null && _socket!.connected) {
-      print('🔄 Socket already connected, reconnecting...');
+    if (_socket != null) {
       _socket!.disconnect();
+      _socket!.dispose();
+      _socket = null;
       await Future.delayed(Duration(milliseconds: 500));
     }
 
     _connectionCompleter = Completer<void>();
 
     try {
-      // Configure socket with auth in multiple locations for maximum compatibility
       _socket = io.io(
         _baseUrl,
         io.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
-            .enableReconnection() // Enable auto-reconnection
+            .enableReconnection()
             .setReconnectionAttempts(5)
             .setReconnectionDelay(2000)
-            .setAuth({
-              'token': token, // PRIMARY: Standard Socket.IO auth
-            })
-            .setQuery({
-              'teamId': teamId,
-              'token': token, // FALLBACK: Query parameter
-            })
-            .setExtraHeaders({
-              'authorization': 'Bearer $token', // FALLBACK: HTTP header style
-            })
+            .setAuth({'token': token})
+            .setQuery({'teamId': teamId, 'token': token})
+            .setExtraHeaders({'authorization': 'Bearer $token'})
             .setTimeout(30000)
             .build(),
       );
 
-      print('🔧 Socket configured with multi-location auth and auto-reconnect');
-
-      // Setup listeners
       _setupSocketListeners();
 
-      // Set connection timeout
       final timer = Timer(Duration(seconds: 15), () {
         if (_connectionCompleter != null &&
             !_connectionCompleter!.isCompleted) {
@@ -202,117 +250,109 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       print('🔌 Connecting socket...');
       _socket!.connect();
 
-      // Wait for connection
       await _connectionCompleter!.future;
       timer.cancel();
 
       print('✅ Socket connected successfully');
-      print('✅ Socket connection state: ${_socket!.connected}');
 
-      // Join team after connection
+      // Join team
       _socket!.emit('join_team', {'teamId': teamId});
       print('🚀 Sent join_team request for team: $teamId');
 
-      // Wait a bit for join_team to complete
       await Future.delayed(Duration(milliseconds: 500));
-
-      print('✅ Final connection state: ${_socket!.connected}');
     } catch (e) {
       print('❌ CONNECTION ERROR: $e');
       _socket?.disconnect();
+      _socket?.dispose();
       _socket = null;
       _connectionCompleter = null;
+      _currentTeamId = null;
+      _currentToken = null;
       rethrow;
     }
   }
 
   @override
   Future<void> disconnect() async {
-    print('🔌 Disconnecting socket...');
+    if (_isDisposed) return;
+
+    print('🔌 Disconnecting socket from team: $_currentTeamId');
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    _socket?.disconnect();
-    _socket?.dispose();
-    _socket = null;
+
+    if (_socket != null) {
+      _socket!.disconnect();
+      _socket!.dispose();
+      _socket = null;
+    }
+
     _currentTeamId = null;
     _currentToken = null;
     _connectionCompleter = null;
+    _processedMessageIds.clear();
   }
 
   @override
   Future<void> sendMessage(String teamId, String content) async {
-    print('💬 Attempting to send message...');
-    print('🔍 Socket null? ${_socket == null}');
-    print('🔍 Socket connected? ${_socket?.connected}');
-
-    if (_socket == null) {
-      print('❌ Socket is null!');
-      throw Exception('Socket not initialized');
+    if (_isDisposed) {
+      throw Exception('DataSource has been disposed');
     }
 
-    if (!_socket!.connected) {
-      print('❌ Socket not connected! Attempting reconnect...');
-
-      // Try to reconnect if we have credentials
-      if (_currentTeamId != null && _currentToken != null) {
-        await connect(_currentTeamId!, _currentToken!);
-
-        // Wait a bit for connection to establish
-        await Future.delayed(Duration(milliseconds: 1000));
-
-        if (!_socket!.connected) {
-          throw Exception('Socket not connected after reconnect attempt');
-        }
-      } else {
-        throw Exception(
-          'Socket not connected and no credentials for reconnect',
-        );
-      }
+    if (_socket == null || !_socket!.connected) {
+      throw Exception('Socket not connected');
     }
+
+    if (_currentTeamId != teamId) {
+      throw Exception(
+        'Connected to wrong team. Expected: $teamId, Current: $_currentTeamId',
+      );
+    }
+
+    print('💬 Sending message to team $teamId: "$content"');
 
     final completer = Completer<void>();
-    final timer = Timer(Duration(seconds: 8), () {
+
+    // Use emitWithAck for reliable delivery
+    _socket!.emitWithAck(
+      'send_message',
+      {'teamId': teamId, 'content': content},
+      ack: (response) {
+        if (completer.isCompleted) return;
+
+        print('✅ Received ACK: $response');
+        if (response is Map && response['error'] != null) {
+          completer.completeError(ServerFailure(response['error']));
+        } else {
+          completer.complete();
+        }
+      },
+    );
+
+    // Set a reasonable timeout
+    final timer = Timer(Duration(seconds: 10), () {
       if (!completer.isCompleted) {
+        print('⏰ Send message timeout');
         completer.completeError(TimeoutException('Send timeout'));
       }
     });
 
-    print('💬 Sending message to team $teamId: "$content"');
-    print('🔍 Socket ID: ${_socket!.id}');
-
     try {
-      _socket!.emitWithAck(
-        'send_message',
-        {'teamId': teamId, 'content': content},
-        ack: (res) {
-          timer.cancel();
-          print('✅ Received ACK: $res');
-          if (res is Map && res['error'] != null) {
-            completer.completeError(ServerFailure(res['error']));
-          } else {
-            print('✅ Message sent successfully');
-            completer.complete();
-          }
-        },
-      );
-
-      await completer.future.timeout(
-        Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException(
-            'Message send timeout - no acknowledgment received',
-          );
-        },
-      );
+      await completer.future;
+      timer.cancel();
+      print('✅ Message sent successfully');
     } catch (e) {
       timer.cancel();
-      print('❌ Error in sendMessage: $e');
+      print('❌ Error sending message: $e');
       rethrow;
     }
   }
 
   @override
   Future<List<MessageModel>> getTeamMessages(String teamId) async {
+    if (_isDisposed) {
+      throw Exception('DataSource has been disposed');
+    }
+
     try {
       final authRepository = GetIt.I<AuthRepository>();
       final token = await authRepository.getAccessToken();
@@ -322,7 +362,6 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       }
 
       final baseUrl = '$_baseUrl/api/v1';
-      print('📡 HTTP: Loading messages for team $teamId');
 
       final response = await http
           .get(
@@ -334,19 +373,13 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           )
           .timeout(Duration(seconds: 10));
 
-      print('📡 HTTP: Response status ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('📡 HTTP: Loaded ${data.length} messages');
         return data.map((json) => MessageModel.fromJson(json)).toList();
       } else if (response.statusCode == 404) {
-        print('📡 HTTP: No messages found (404)');
         return [];
       } else {
-        throw ServerFailure(
-          'Failed to load messages: ${response.statusCode} - ${response.body}',
-        );
+        throw ServerFailure('Failed to load messages: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ HTTP GET MESSAGES ERROR: $e');
@@ -355,9 +388,12 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   void dispose() {
+    _isDisposed = true;
     _reconnectTimer?.cancel();
+    _messageCleanupTimer?.cancel();
     _messageStreamController.close();
     _connectedStreamController.close();
     _socket?.dispose();
+    _processedMessageIds.clear();
   }
 }

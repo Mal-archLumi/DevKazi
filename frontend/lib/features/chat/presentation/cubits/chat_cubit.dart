@@ -299,6 +299,11 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  void clearMessages() {
+    _logger.i('Clearing messages');
+    emit(state.copyWith(messages: const []));
+  }
+
   Future<void> disconnectFromChat() async {
     _logger.i('Disconnecting from chat');
     _messageSubscription?.cancel();

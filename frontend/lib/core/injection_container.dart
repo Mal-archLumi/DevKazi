@@ -150,7 +150,7 @@ Future<void> initDependencies() async {
   // ⚠️ CRITICAL FIX: Change from registerFactory to registerLazySingleton
   // This ensures the same socket instance is used throughout the app
   getIt.registerLazySingleton<ChatRemoteDataSource>(
-    () => ChatRemoteDataSourceImpl(networkInfo: getIt<NetworkInfo>()),
+    () => ChatRemoteDataSourceImpl(),
   );
 
   getIt.registerLazySingleton<ChatRepository>(

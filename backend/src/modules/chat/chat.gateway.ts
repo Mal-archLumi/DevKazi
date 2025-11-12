@@ -1,4 +1,3 @@
-// src/modules/chat/chat.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -7,12 +6,14 @@ import {
   ConnectedSocket,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
 } from '@nestjs/websockets';
-import { UsePipes, ValidationPipe, Logger, Inject } from '@nestjs/common';
+import { UsePipes, ValidationPipe, Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ConfigService } from '@nestjs/config';
+import { WebSocketJwtAuthGuard } from '../../auth/guards/websocket-jwt-auth.guard';
 
 interface AuthenticatedSocket extends Socket {
   data: {
@@ -22,8 +23,6 @@ interface AuthenticatedSocket extends Socket {
       name: string;
       isVerified: boolean;
     };
-    isAuthenticated?: boolean;
-    authAttempts?: number;
   };
 }
 
@@ -38,7 +37,7 @@ interface AuthenticatedSocket extends Socket {
   allowEIO3: true,
 })
 @UsePipes(new ValidationPipe())
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -50,67 +49,109 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly configService: ConfigService,
   ) {}
 
-  async handleConnection(client: AuthenticatedSocket) {
-    this.logger.debug(`🔄 New connection attempt: ${client.id}`);
+  // Set up middleware to authenticate BEFORE connection
+  afterInit(server: Server) {
+    this.logger.log('🚀 WebSocket Gateway initialized');
+    
+    // Add authentication middleware
+    server.use(async (socket: AuthenticatedSocket, next) => {
+      try {
+        this.logger.debug('🔍 WebSocket Middleware - Authenticating connection');
+        this.logger.debug('🔍 Query:', socket.handshake.query);
+        this.logger.debug('🔍 Auth:', socket.handshake.auth);
+        this.logger.debug('🔍 Headers:', socket.handshake.headers);
 
-    try {
-      // Initialize authentication state
-      client.data.isAuthenticated = false;
-      client.data.authAttempts = 0;
-      
-      const handshake = client.handshake;
-      this.logger.debug(`📋 Handshake Auth: ${JSON.stringify(handshake.auth)}`);
-      this.logger.debug(`📋 Handshake Query: ${JSON.stringify(handshake.query)}`);
-      this.logger.debug(`📋 Handshake Headers: ${JSON.stringify(handshake.headers)}`);
+        // Extract token from multiple possible locations
+        let token: string | undefined;
 
-      // Extract token from ALL possible locations
-      let token: string | null = null;
-
-      // 1. Check handshake auth (Socket.IO v4+)
-      if (handshake.auth?.token) {
-        token = handshake.auth.token;
-        this.logger.debug('✅ Token found in handshake.auth');
-      }
-      
-      // 2. Check query parameters (Socket.IO v2/v3)
-      if (!token && handshake.query?.token) {
-        token = Array.isArray(handshake.query.token) 
-          ? handshake.query.token[0] 
-          : handshake.query.token;
-        this.logger.debug('✅ Token found in handshake.query');
-      }
-
-      // 3. Check Authorization header
-      if (!token && handshake.headers?.authorization) {
-        const authHeader = handshake.headers.authorization;
-        if (authHeader.startsWith('Bearer ')) {
-          token = authHeader.substring(7);
-          this.logger.debug('✅ Token found in Authorization header');
+        // 1. Check handshake.auth.token (standard Socket.IO auth)
+        if (socket.handshake.auth?.token) {
+          token = socket.handshake.auth.token;
+          this.logger.debug('✅ Token found in auth.token');
         }
+        // 2. Check handshake.headers.authorization (HTTP-style auth)
+        else if (socket.handshake.headers?.authorization) {
+          const authHeader = socket.handshake.headers.authorization as string;
+          token = authHeader.replace('Bearer ', '');
+          this.logger.debug('✅ Token found in headers.authorization');
+        }
+        // 3. Check handshake.query.token (query parameter)
+        else if (socket.handshake.query?.token) {
+          token = socket.handshake.query.token as string;
+          this.logger.debug('✅ Token found in query.token');
+        }
+
+        if (!token) {
+          this.logger.error('❌ No token found in handshake');
+          return next(new Error('Authentication token required'));
+        }
+
+        // Verify JWT token
+        const jwtSecret = this.configService.get<string>('JWT_SECRET');
+        const payload = await this.jwtService.verifyAsync(token, {
+          secret: jwtSecret,
+        });
+
+        if (!payload || !payload.sub) {
+          this.logger.error('❌ Invalid token payload');
+          return next(new Error('Invalid token'));
+        }
+
+        // Attach user to socket BEFORE connection
+        socket.data.user = {
+          userId: payload.sub,
+          email: payload.email || null,
+          name: payload.name || 'User',
+          isVerified: payload.isVerified || false,
+        };
+
+        this.logger.log(`✅ WebSocket authenticated in middleware: User ${payload.sub}`);
+        next();
+
+      } catch (error) {
+        this.logger.error(`❌ WebSocket auth middleware failed: ${error.message}`);
+        next(new Error('Authentication failed: ' + error.message));
+      }
+    });
+  }
+
+  // NOW handleConnection will have the user already attached
+  async handleConnection(client: AuthenticatedSocket) {
+    try {
+      const user = client.data.user;
+
+      if (!user) {
+        this.logger.error(`❌ No user in client.data - Auth failed`);
+        client.emit('connection_error', { 
+          message: 'Authentication failed - no user data' 
+        });
+        client.disconnect();
+        return;
       }
 
-      if (token) {
-        // Try to authenticate with the token from handshake
-        await this.authenticateClient(client, token);
-      } else {
-        this.logger.warn(`❌ No token found in handshake for client ${client.id}`);
-        this.logger.debug('Waiting for manual authentication...');
+      this.logger.log(`✅ Client connected and authenticated: ${client.id} | User: ${user.userId}`);
+      
+      // Send immediate connection success
+      client.emit('connection_success', {
+        message: 'Successfully connected and authenticated',
+        userId: user.userId,
+        userName: user.name,
+        timestamp: new Date().toISOString()
+      });
+
+      // Join team room immediately if teamId is provided in handshake
+      const teamId = client.handshake.query.teamId as string;
+      if (teamId) {
+        client.join(teamId);
+        this.logger.log(`✅ User ${user.userId} auto-joined team ${teamId}`);
         
-        // 🚨 CRITICAL: Don't disconnect - wait for manual authentication
-        client.emit('authentication_required', { 
-          message: 'Authentication token required. Please send authenticate event with token.' 
+        // Notify others in team
+        client.to(teamId).emit('user_joined', {
+          userId: user.userId,
+          userName: user.name,
+          teamId: teamId,
+          timestamp: new Date().toISOString()
         });
-        
-        // Set a timeout to disconnect if no authentication happens
-        setTimeout(() => {
-          if (!client.data.isAuthenticated) {
-            this.logger.warn(`⏰ Authentication timeout for client ${client.id}`);
-            client.emit('authentication_timeout', { 
-              message: 'Authentication timeout. Please reconnect with valid token.' 
-            });
-            client.disconnect();
-          }
-        }, 30000); // 30 second timeout
       }
 
     } catch (error: any) {
@@ -122,109 +163,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  private async authenticateClient(client: AuthenticatedSocket, token: string): Promise<void> {
-    try {
-      client.data.authAttempts = (client.data.authAttempts || 0) + 1;
-      this.logger.debug(`🔐 Authentication attempt ${client.data.authAttempts} for client ${client.id}`);
-
-      // Verify token
-      const secret = this.configService.get<string>('JWT_SECRET');
-      if (!secret) {
-        throw new Error('JWT_SECRET not configured');
-      }
-
-      const payload = this.jwtService.verify(token, { secret });
-      
-      // Validate payload
-      const userId = payload.sub || payload.userId;
-      if (!userId) {
-        throw new Error('JWT payload missing user identifier');
-      }
-
-      // Set user data and authentication state
-      client.data.user = {
-        userId: userId,
-        email: payload.email || null,
-        name: payload.name || 'Anonymous',
-        isVerified: payload.isVerified || false,
-      };
-      client.data.isAuthenticated = true;
-
-      this.logger.log(`✅ Client authenticated: ${client.id} | User: ${userId}`);
-      
-      // Send authentication success
-      client.emit('authenticated', {
-        success: true,
-        userId: userId,
-        user: client.data.user
-      });
-
-      // Send connection confirmation
-      client.emit('connection_success', {
-        message: 'Successfully connected and authenticated',
-        userId: userId,
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (error: any) {
-      this.logger.error(`❌ Authentication failed for client ${client.id}: ${error.message}`);
-      client.emit('authentication_error', { 
-        message: `Authentication failed: ${error.message}` 
-      });
-      
-      // Don't disconnect immediately - allow manual auth retry
-      if (client.data.authAttempts >= 3) {
-        this.logger.warn(`🚫 Too many auth failures for client ${client.id}, disconnecting`);
-        client.disconnect();
-      }
-    }
-  }
-
-  // Manual authentication fallback
-  @SubscribeMessage('authenticate')
-  async handleAuthenticate(
-    @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { token: string },
-  ) {
-    try {
-      this.logger.debug(`🔐 Manual authentication for client: ${client.id}`);
-
-      if (!data?.token) {
-        client.emit('authentication_error', { message: 'No token provided' });
-        return;
-      }
-
-      await this.authenticateClient(client, data.token);
-
-    } catch (error: any) {
-      this.logger.error(`❌ Manual auth failed: ${error.message}`);
-      client.emit('authentication_error', { 
-        message: `Authentication failed: ${error.message}` 
-      });
-    }
-  }
-
   handleDisconnect(client: AuthenticatedSocket) {
     const user = client.data.user;
-    this.logger.log(`🔌 Client disconnected: ${client.id} | User: ${user?.userId || 'Unknown'} | Auth attempts: ${client.data.authAttempts || 0}`);
+    this.logger.log(`🔌 Client disconnected: ${client.id} | User: ${user?.userId || 'Unknown'}`);
+    
+    // Notify all rooms the user was in
+    const rooms = Array.from(client.rooms).filter(room => room !== client.id);
+    rooms.forEach(teamId => {
+      client.to(teamId).emit('user_left', {
+        userId: user?.userId,
+        userName: user?.name,
+        teamId: teamId,
+        timestamp: new Date().toISOString()
+      });
+    });
   }
 
   @SubscribeMessage('join_team')
+  @UseGuards(WebSocketJwtAuthGuard)
   async handleJoinTeam(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() { teamId }: { teamId: string },
   ) {
     try {
-      // Check if client is authenticated
-      if (!client.data.isAuthenticated || !client.data.user) {
-        this.logger.error(`❌ join_team: Client ${client.id} not authenticated`);
-        client.emit('authentication_required', { 
-          message: 'Please authenticate before joining a team' 
-        });
-        return;
-      }
-
-      const user = client.data.user;
+      const user = client.data.user!;
       
       if (!teamId) {
         client.emit('error', { message: 'Team ID is required' });
@@ -232,12 +194,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       client.join(teamId);
-      this.logger.log(`✅ User ${user.userId} joined team ${teamId}`);
+      this.logger.log(`✅ User ${user.userId} manually joined team ${teamId}`);
       
       client.emit('joined_team', { 
         success: true, 
         teamId,
         message: `Successfully joined team ${teamId}`
+      });
+
+      // Notify other users in the team
+      client.to(teamId).emit('user_joined', {
+        userId: user.userId,
+        userName: user.name,
+        teamId: teamId,
+        timestamp: new Date().toISOString()
       });
 
     } catch (error: any) {
@@ -249,17 +219,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('send_message')
+  @UseGuards(WebSocketJwtAuthGuard)
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() { teamId, content }: { teamId: string; content: string },
   ) {
     try {
-      if (!client.data.isAuthenticated || !client.data.user) {
-        client.emit('authentication_required', { message: 'Not authenticated' });
-        return;
-      }
-
-      const user = client.data.user;
+      const user = client.data.user!;
 
       if (!content?.trim()) {
         client.emit('error', { message: 'Message content cannot be empty' });
@@ -268,6 +234,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!teamId) {
         client.emit('error', { message: 'Team ID is required' });
+        return;
+      }
+
+      // Check if user is in the team room
+      const rooms = Array.from(client.rooms);
+      if (!rooms.includes(teamId)) {
+        client.emit('error', { message: 'You are not a member of this team' });
         return;
       }
 
@@ -288,6 +261,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         timestamp: saved.timestamp || new Date(),
       };
 
+      // Broadcast to all in the team room including sender
       this.server.to(teamId).emit('new_message', message);
       
       client.emit('message_sent', { 
@@ -305,11 +279,166 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage('leave_team')
+  @UseGuards(WebSocketJwtAuthGuard)
+  async handleLeaveTeam(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() { teamId }: { teamId: string },
+  ) {
+    try {
+      const user = client.data.user!;
+
+      if (!teamId) {
+        client.emit('error', { message: 'Team ID is required' });
+        return;
+      }
+
+      client.leave(teamId);
+      this.logger.log(`🚪 User ${user.userId} left team ${teamId}`);
+      
+      client.emit('left_team', { 
+        success: true, 
+        teamId,
+        message: `Successfully left team ${teamId}`
+      });
+
+      // Notify other users in the team
+      client.to(teamId).emit('user_left', {
+        userId: user.userId,
+        userName: user.name,
+        teamId: teamId,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error: any) {
+      this.logger.error(`❌ Leave team error: ${error.message}`);
+      client.emit('error', { 
+        message: 'Failed to leave team: ' + error.message 
+      });
+    }
+  }
+
+  @SubscribeMessage('typing_start')
+  @UseGuards(WebSocketJwtAuthGuard)
+  async handleTypingStart(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() { teamId }: { teamId: string },
+  ) {
+    try {
+      const user = client.data.user!;
+
+      if (!teamId) {
+        return;
+      }
+
+      // Notify others in the team that user is typing
+      client.to(teamId).emit('user_typing', {
+        userId: user.userId,
+        userName: user.name,
+        teamId: teamId,
+        isTyping: true
+      });
+
+    } catch (error: any) {
+      this.logger.error(`❌ Typing start error: ${error.message}`);
+    }
+  }
+
+  @SubscribeMessage('typing_stop')
+  @UseGuards(WebSocketJwtAuthGuard)
+  async handleTypingStop(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() { teamId }: { teamId: string },
+  ) {
+    try {
+      const user = client.data.user!;
+
+      if (!teamId) {
+        return;
+      }
+
+      // Notify others in the team that user stopped typing
+      client.to(teamId).emit('user_typing', {
+        userId: user.userId,
+        userName: user.name,
+        teamId: teamId,
+        isTyping: false
+      });
+
+    } catch (error: any) {
+      this.logger.error(`❌ Typing stop error: ${error.message}`);
+    }
+  }
+
   @SubscribeMessage('ping')
   handlePing(@ConnectedSocket() client: AuthenticatedSocket) {
     client.emit('pong', { 
       timestamp: new Date().toISOString(),
       serverTime: Date.now()
+    });
+  }
+
+  @SubscribeMessage('get_online_users')
+  @UseGuards(WebSocketJwtAuthGuard)
+  async handleGetOnlineUsers(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() { teamId }: { teamId: string },
+  ) {
+    try {
+      if (!teamId) {
+        client.emit('error', { message: 'Team ID is required' });
+        return;
+      }
+
+      // Get all sockets in the team room
+      const sockets = await this.server.in(teamId).fetchSockets();
+      const onlineUsers = sockets
+        .map(socket => (socket as unknown as AuthenticatedSocket).data.user)
+        .filter(user => user != null)
+        .map(user => ({
+          userId: user!.userId,
+          name: user!.name,
+          email: user!.email
+        }));
+
+      client.emit('online_users', {
+        teamId,
+        users: onlineUsers
+      });
+
+    } catch (error: any) {
+      this.logger.error(`❌ Get online users error: ${error.message}`);
+      client.emit('error', { 
+        message: 'Failed to get online users: ' + error.message 
+      });
+    }
+  }
+
+  // Health check endpoint
+  @SubscribeMessage('health_check')
+  handleHealthCheck(@ConnectedSocket() client: AuthenticatedSocket) {
+    const user = client.data.user;
+    client.emit('health_response', {
+      status: 'healthy',
+      userId: user?.userId,
+      authenticated: !!user,
+      connected: true,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Get connection info
+  @SubscribeMessage('connection_info')
+  handleConnectionInfo(@ConnectedSocket() client: AuthenticatedSocket) {
+    const user = client.data.user;
+    const rooms = Array.from(client.rooms);
+    
+    client.emit('connection_info_response', {
+      socketId: client.id,
+      userId: user?.userId,
+      authenticated: !!user,
+      joinedRooms: rooms.filter(room => room !== client.id), // Exclude private room
+      timestamp: new Date().toISOString()
     });
   }
 }

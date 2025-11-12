@@ -121,5 +121,49 @@ async getAllTeamsExceptUser(@Request() req) {
     return this.teamsService.joinTeam(teamId, req.user.userId); // CHANGED
   }
 
+  @Get('search/my-teams')
+@ApiOperation({ summary: 'Search current user teams' })
+@ApiResponse({ status: 200, description: 'Search completed successfully' })
+async searchUserTeams(@Query('q') query: string, @Request() req) {
+  console.log('🟡 GET /teams/search/my-teams called with query:', query);
+  try {
+    const result = await this.teamsService.searchUserTeams(req.user.userId, query);
+    console.log('🟢 GET /teams/search/my-teams success, found teams:', result.length);
+    return result;
+  } catch (error) {
+    console.log('🔴 GET /teams/search/my-teams error:', error.message);
+    throw error;
+  }
+}
+
+@Get('search/browse')
+@ApiOperation({ summary: 'Search all teams except current user teams' })
+@ApiResponse({ status: 200, description: 'Search completed successfully' })
+async searchBrowseTeams(@Query('q') query: string, @Request() req) {
+  console.log('🟡 GET /teams/search/browse called with query:', query);
+  try {
+    const result = await this.teamsService.searchTeamsExceptUser(req.user.userId, query);
+    console.log('🟢 GET /teams/search/browse success, found teams:', result.length);
+    return result;
+  } catch (error) {
+    console.log('🔴 GET /teams/search/browse error:', error.message);
+    throw error;
+  }
+}
+
+@Get('search/all')
+@ApiOperation({ summary: 'Search all teams' })
+@ApiResponse({ status: 200, description: 'Search completed successfully' })
+async searchAllTeams(@Query('q') query: string) {
+  console.log('🟡 GET /teams/search/all called with query:', query);
+  try {
+    const result = await this.teamsService.searchAllTeams(query);
+    console.log('🟢 GET /teams/search/all success, found teams:', result.length);
+    return result;
+  } catch (error) {
+    console.log('🔴 GET /teams/search/all error:', error.message);
+    throw error;
+  }
+}
   // Remove inviteMember and regenerateInviteCode endpoints
 }

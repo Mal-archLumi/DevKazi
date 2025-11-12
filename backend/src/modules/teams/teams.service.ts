@@ -379,4 +379,89 @@ export class TeamsService {
     throw new InternalServerErrorException('Failed to fetch teams');
   }
 }
+async searchUserTeams(userId: string, query: string): Promise<Team[]> {
+  try {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    const searchRegex = new RegExp(query, 'i'); // case-insensitive search
+    
+    const teams = await this.teamModel
+      .find({
+        'members.user': new Types.ObjectId(userId),
+        $or: [
+          { name: { $regex: searchRegex } },
+          { description: { $regex: searchRegex } }
+        ]
+      })
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .sort({ lastActivity: -1 })
+      .exec();
+
+    return teams;
+  } catch (error) {
+    this.logger.error(`Failed to search user teams for ${userId}: ${error.message}`);
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new InternalServerErrorException('Failed to search teams');
+  }
+}
+
+async searchAllTeams(query: string): Promise<Team[]> {
+  try {
+    const searchRegex = new RegExp(query, 'i'); // case-insensitive search
+    
+    const teams = await this.teamModel
+      .find({
+        $or: [
+          { name: { $regex: searchRegex } },
+          { description: { $regex: searchRegex } }
+        ]
+      })
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .sort({ lastActivity: -1 })
+      .exec();
+
+    return teams;
+  } catch (error) {
+    this.logger.error(`Failed to search all teams: ${error.message}`);
+    throw new InternalServerErrorException('Failed to search teams');
+  }
+}
+
+async searchTeamsExceptUser(userId: string, query: string): Promise<Team[]> {
+  try {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    const searchRegex = new RegExp(query, 'i');
+    
+    const teams = await this.teamModel
+      .find({
+        'members.user': { $ne: new Types.ObjectId(userId) },
+        $or: [
+          { name: { $regex: searchRegex } },
+          { description: { $regex: searchRegex } }
+        ]
+      })
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .sort({ lastActivity: -1 })
+      .exec();
+
+    return teams;
+  } catch (error) {
+    this.logger.error(`Failed to search browse teams for user ${userId}: ${error.message}`);
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new InternalServerErrorException('Failed to search teams');
+  }
+}
+
 }

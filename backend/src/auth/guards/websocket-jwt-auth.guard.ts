@@ -1,61 +1,97 @@
-// src/auth/guards/websocket-jwt-auth.guard.ts
-import { Injectable, ExecutionContext, Logger } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { WsException } from '@nestjs/websockets';
+// websocket-jwt-auth.guard.ts
+import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { Socket } from 'socket.io';
+
+interface AuthenticatedSocket extends Socket {
+  data: {
+    user?: {
+      userId: string;
+      email: string | null;
+      name: string;
+      isVerified: boolean;
+    };
+  };
+}
 
 @Injectable()
-export class WebSocketJwtAuthGuard extends AuthGuard('ws-jwt') {
+export class WebSocketJwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(WebSocketJwtAuthGuard.name);
 
-  getRequest(context: ExecutionContext) {
-    const client = context.switchToWs().getClient();
-    const { handshake } = client;
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
 
-    this.logger.debug('Handshake Auth:', handshake.auth);
-    this.logger.debug('Handshake Query:', handshake.query);
-    this.logger.debug('Handshake Headers:', handshake.headers);
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const client: AuthenticatedSocket = context.switchToWs().getClient();
+    
+    try {
+      // Log handshake details for debugging
+      this.logger.debug('🔍 WebSocket Connection - Handshake Query:', client.handshake.query);
+      this.logger.debug('🔍 WebSocket Connection - Handshake Headers:', client.handshake.headers);
+      this.logger.debug('🔍 WebSocket Connection - Handshake Auth:', client.handshake.auth);
 
-    // 1. auth object (recommended)
-    let token = handshake.auth?.token;
+      // Extract token from multiple possible locations
+      let token: string | undefined;
 
-    // 2. query fallback
-    if (!token && handshake.query?.token) {
-      token = Array.isArray(handshake.query.token)
-        ? handshake.query.token[0]
-        : handshake.query.token;
+      // 1. Check handshake.auth.token (standard Socket.IO auth)
+      if (client.handshake.auth?.token) {
+        token = client.handshake.auth.token;
+        this.logger.debug('✅ Token found in handshake.auth.token');
+      }
+      // 2. Check handshake.headers.authorization (HTTP-style auth)
+      else if (client.handshake.headers?.authorization) {
+        const authHeader = client.handshake.headers.authorization as string;
+        token = authHeader.replace('Bearer ', '');
+        this.logger.debug('✅ Token found in handshake.headers.authorization');
+      }
+      // 3. Check handshake.query.token (query parameter)
+      else if (client.handshake.query?.token) {
+        token = client.handshake.query.token as string;
+        this.logger.debug('✅ Token found in handshake.query.token');
+      }
+
+      if (!token) {
+        this.logger.error('❌ No token found in handshake');
+        client.emit('authentication_error', { 
+          message: 'No authentication token provided' 
+        });
+        return false;
+      }
+
+      // Verify JWT token
+      const jwtSecret = this.configService.get<string>('JWT_SECRET');
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: jwtSecret,
+      });
+
+      if (!payload || !payload.sub) {
+        this.logger.error('❌ Invalid token payload');
+        client.emit('authentication_error', { 
+          message: 'Invalid token' 
+        });
+        return false;
+      }
+
+      // Attach user to socket
+      client.data.user = {
+        userId: payload.sub,
+        email: payload.email || null,
+        name: payload.name || 'User',
+        isVerified: payload.isVerified || false,
+      };
+
+      this.logger.log(`✅ WebSocket authenticated: User ${payload.sub}`);
+      return true;
+
+    } catch (error) {
+      this.logger.error(`❌ WebSocket auth failed: ${error.message}`);
+      client.emit('authentication_error', { 
+        message: 'Authentication failed: ' + error.message 
+      });
+      return false;
     }
-
-    // 3. Authorization header fallback
-    if (!token && handshake.headers?.authorization?.startsWith('Bearer ')) {
-      token = handshake.headers.authorization.substring(7);
-    }
-
-    if (!token) throw new WsException('No auth token');
-
-    // Passport expects a request-like object with a Bearer header
-    return { headers: { authorization: `Bearer ${token}` }, handshake };
-  }
-
-  handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
-    if (err || !user) {
-      this.logger.warn(`WebSocket auth failed: ${info?.message || err}`);
-      throw new WsException('Unauthorized');
-    }
-
-    const client = context.switchToWs().getClient();
-    client.data.user = user;
-    this.logger.log(`WebSocket authenticated user: ${user.userId}`);
-
-    //logging 
-    this.logger.log(`GUARD SUCCESS: Setting client.data.user = ${user.userId} (id: ${client.id})`);
-    this.logger.debug(`Guard received user: ${JSON.stringify(user)}`);
-
-
-    return user;               // <-- critical
-  }
-
-
-  canActivate(context: ExecutionContext) {
-    return super.canActivate(context);
   }
 }

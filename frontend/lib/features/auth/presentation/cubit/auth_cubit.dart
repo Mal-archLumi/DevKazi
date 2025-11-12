@@ -35,9 +35,7 @@ class AuthCubit extends Cubit<AuthState> {
             // Keep as AuthInitial if loading fails
           },
           (user) {
-            if (user != null) {
-              emit(AuthAuthenticated(user));
-            }
+            emit(AuthAuthenticated(user));
           },
         );
       }

@@ -50,7 +50,10 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
       create: (context) => getIt<BrowseTeamsCubit>()..loadAllTeams(),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Discover Teams'),
+          title: Text(
+            'Discover Teams',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+          ),
           backgroundColor: Theme.of(context).colorScheme.surface,
           elevation: 0,
         ),

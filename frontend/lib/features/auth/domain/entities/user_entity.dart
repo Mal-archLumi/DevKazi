@@ -6,6 +6,13 @@ class UserEntity {
   final DateTime updatedAt;
   final String accessToken;
   final String refreshToken;
+  final List<String> skills;
+  final String? bio;
+  final String? education;
+  final String? avatar;
+  final bool isVerified;
+  final bool isProfilePublic;
+  final bool isActive;
 
   const UserEntity({
     required this.id,
@@ -15,7 +22,16 @@ class UserEntity {
     required this.updatedAt,
     required this.accessToken,
     required this.refreshToken,
+    this.skills = const [],
+    this.bio,
+    this.education,
+    this.avatar,
+    this.isVerified = false,
+    this.isProfilePublic = true,
+    this.isActive = true,
   });
+
+  String get initial => name.isNotEmpty ? name[0].toUpperCase() : 'U';
 
   UserEntity copyWith({
     String? id,
@@ -25,6 +41,13 @@ class UserEntity {
     DateTime? updatedAt,
     String? accessToken,
     String? refreshToken,
+    List<String>? skills,
+    String? bio,
+    String? education,
+    String? avatar,
+    bool? isVerified,
+    bool? isProfilePublic,
+    bool? isActive,
   }) {
     return UserEntity(
       id: id ?? this.id,
@@ -34,6 +57,13 @@ class UserEntity {
       updatedAt: updatedAt ?? this.updatedAt,
       accessToken: accessToken ?? this.accessToken,
       refreshToken: refreshToken ?? this.refreshToken,
+      skills: skills ?? this.skills,
+      bio: bio ?? this.bio,
+      education: education ?? this.education,
+      avatar: avatar ?? this.avatar,
+      isVerified: isVerified ?? this.isVerified,
+      isProfilePublic: isProfilePublic ?? this.isProfilePublic,
+      isActive: isActive ?? this.isActive,
     );
   }
 

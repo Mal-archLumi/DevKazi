@@ -6,6 +6,10 @@ class TokensEntity {
 
   bool get hasValidTokens => accessToken.isNotEmpty && refreshToken.isNotEmpty;
 
+  get $1 => null;
+
+  get $2 => null;
+
   TokensEntity copyWith({String? accessToken, String? refreshToken}) {
     return TokensEntity(
       accessToken: accessToken ?? this.accessToken,

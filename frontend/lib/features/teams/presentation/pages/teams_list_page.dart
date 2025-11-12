@@ -10,11 +10,13 @@ import 'package:frontend/features/teams/presentation/blocs/teams/teams_state.dar
 import 'package:frontend/features/teams/presentation/pages/browse_teams_page.dart';
 import 'package:frontend/features/teams/presentation/pages/create_team_page.dart';
 import 'package:frontend/core/injection_container.dart';
+import 'package:frontend/features/user/presentation/pages/profile_page.dart';
 import 'package:logger/logger.dart';
 import '../widgets/team_card.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
 import 'package:frontend/core/constants/route_constants.dart';
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
+import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
 
 class TeamsListPage extends StatefulWidget {
   const TeamsListPage({super.key});
@@ -63,26 +65,45 @@ class _TeamsListPageState extends State<TeamsListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Only show app bar for the first tab (My Teams)
-      appBar: _currentIndex == 0 ? _buildMyTeamsAppBar() : null,
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        children: [
-          TeamsListBody(key: _teamsListKey),
-          BrowseTeamsPage(onCreateTeamPressed: _navigateToCreateTeam),
-          Container(
-            alignment: Alignment.center,
-            child: const Text('Profile Page'),
-          ),
-        ],
+    return MultiBlocProvider(
+      providers: [
+        // Provide UserCubit at the page level so it persists across tab changes
+        BlocProvider(create: (context) => getIt<UserCubit>()),
+      ],
+      child: Scaffold(
+        // Only show app bar for the first tab (My Teams)
+        appBar: _currentIndex == 0 ? _buildMyTeamsAppBar() : null,
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          children: [
+            TeamsListBody(key: _teamsListKey),
+            BrowseTeamsPage(onCreateTeamPressed: _navigateToCreateTeam),
+            const ProfilePage(), // Now UserCubit is available at page level
+          ],
+        ),
+        // Add Floating Action Button - only show on My Teams tab
+        floatingActionButton: _currentIndex == 0
+            ? _buildFloatingActionButton()
+            : null,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return FloatingActionButton(
+      onPressed: _navigateToCreateTeam,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: const Icon(Icons.add, size: 28),
     );
   }
 
@@ -137,7 +158,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Theme.of(
           context,
-        ).colorScheme.onSurface.withValues(alpha: 0.6),
+        ).colorScheme.onSurface.withOpacity(0.6),
         selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 12,
@@ -152,7 +173,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -170,7 +191,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -190,7 +211,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
                   ? BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     )
                   : null,
@@ -238,6 +259,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
   }
 }
 
+// TeamsListBody class remains exactly the same as your current implementation
 class TeamsListBody extends StatefulWidget {
   const TeamsListBody({super.key});
 
@@ -317,7 +339,7 @@ class _TeamsListBodyState extends State<TeamsListBody> {
         decoration: InputDecoration(
           hintText: 'Search my teams...',
           hintStyle: TextStyle(
-            color: Colors.green.shade400.withValues(alpha: 0.7),
+            color: Colors.green.shade400.withOpacity(0.7),
             fontSize: 16,
           ),
           prefixIcon: Icon(
@@ -329,7 +351,7 @@ class _TeamsListBodyState extends State<TeamsListBody> {
               ? IconButton(
                   icon: Icon(
                     Icons.close,
-                    color: Colors.green.shade400.withValues(alpha: 0.7),
+                    color: Colors.green.shade400.withOpacity(0.7),
                     size: 20,
                   ),
                   onPressed: _clearSearch,
@@ -438,8 +460,7 @@ class _TeamsListBodyState extends State<TeamsListBody> {
           ),
           child: TeamCard(
             team: team,
-            onTap: () =>
-                _navigateToTeamDetails(team), // Pass the whole team object
+            onTap: () => _navigateToTeamDetails(team),
           ),
         );
       }, childCount: teamsToShow.length),
@@ -447,9 +468,8 @@ class _TeamsListBodyState extends State<TeamsListBody> {
   }
 
   void _navigateToTeamDetails(TeamEntity team) {
-    Navigator.of(context).pushNamed(
-      RouteConstants.teamDetails,
-      arguments: team, // Pass the whole team object
-    );
+    Navigator.of(
+      context,
+    ).pushNamed(RouteConstants.teamDetails, arguments: team);
   }
 }

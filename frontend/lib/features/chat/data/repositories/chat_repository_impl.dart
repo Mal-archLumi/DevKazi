@@ -1,4 +1,3 @@
-// lib/features/chat/data/repositories/chat_repository_impl.dart
 import 'dart:async';
 import 'package:frontend/core/errors/failures.dart';
 import 'package:frontend/core/network/network_info.dart';
@@ -23,7 +22,10 @@ class ChatRepositoryImpl implements ChatRepository {
       remoteDataSource.messageStream.map((model) => model.toEntity());
 
   @override
-  Stream<void> get onAuthenticated => remoteDataSource.onAuthenticated;
+  Stream<void> get onConnected => remoteDataSource.onConnected;
+
+  @override
+  Stream<void> get onAuthenticated => remoteDataSource.onConnected;
 
   @override
   Future<Either<Failure, void>> connect(String teamId, String token) async {
@@ -32,9 +34,11 @@ class ChatRepositoryImpl implements ChatRepository {
       _logger.i('🔑 Token length: ${token.length}');
 
       await remoteDataSource.connect(teamId, token);
+
+      _logger.i('✅ Connection completed successfully');
       return const Right(null);
     } catch (e) {
-      _logger.e('Connection error: $e');
+      _logger.e('⛔ Connection error: $e');
       return Left(ServerFailure('Connection failed: $e'));
     }
   }
@@ -60,7 +64,14 @@ class ChatRepositoryImpl implements ChatRepository {
     }
 
     try {
+      _logger.i('📤 Sending message to team $teamId');
+      _logger.i(
+        '🔍 Remote data source connected: ${remoteDataSource.isConnected}',
+      );
+
       await remoteDataSource.sendMessage(teamId, content);
+
+      _logger.i('✅ Message sent successfully');
       return const Right(null);
     } catch (e) {
       _logger.e('❌ Error sending message: $e');

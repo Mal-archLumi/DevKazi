@@ -12,6 +12,7 @@ import 'package:frontend/core/themes/theme_manager.dart';
 import 'package:frontend/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
+import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
 
 class DevKaziApp extends StatefulWidget {
   const DevKaziApp({super.key});
@@ -45,6 +46,7 @@ class _DevKaziAppState extends State<DevKaziApp> {
               create: (context) => di.getIt<TeamsCubit>(),
             ),
             BlocProvider<ChatCubit>(create: (context) => di.getIt<ChatCubit>()),
+            BlocProvider<UserCubit>(create: (context) => di.getIt<UserCubit>()),
           ],
           child: ValueListenableBuilder<ThemeData>(
             valueListenable: themeManager.themeNotifier,

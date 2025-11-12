@@ -1,4 +1,3 @@
-// lib/features/auth/data/repositories/auth_repository_impl.dart
 import 'dart:convert';
 // ignore: unused_import
 import 'dart:math';
@@ -17,6 +16,8 @@ class AuthRepositoryImpl implements AuthRepository {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userIdKey = 'user_id';
+  static const String _userDataKey =
+      'user_data'; // Added for comprehensive cleanup
 
   final FlutterSecureStorage _secureStorage;
   final GoogleSignIn _googleSignIn;
@@ -281,16 +282,37 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, void>> logout() async {
     try {
       print('🟡 Logging out user...');
+
+      // Sign out from Google if user was signed in with Google
       await _googleSignIn.signOut();
+
+      // Clear all authentication-related data from secure storage
       await _secureStorage.delete(key: _accessTokenKey);
       await _secureStorage.delete(key: _refreshTokenKey);
       await _secureStorage.delete(key: _userIdKey);
+      await _secureStorage.delete(key: _userDataKey);
 
-      _logAuthSuccess('logout');
+      // Verify all data has been cleared
+      final accessToken = await _secureStorage.read(key: _accessTokenKey);
+      final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
+      final userId = await _secureStorage.read(key: _userIdKey);
+
+      if (accessToken == null && refreshToken == null && userId == null) {
+        _logAuthSuccess('logout', 'All user data cleared successfully');
+      } else {
+        _logAuthError(
+          'logout',
+          'Some user data may not have been cleared properly',
+        );
+        // Continue anyway - don't fail the logout process
+      }
+
       return const Right(null);
     } catch (e) {
       _logAuthError('logout', e);
-      return Left(CacheFailure(e.toString()));
+      // Even if there's an error, we should still return success
+      // to allow the user to proceed with logout
+      return const Right(null);
     }
   }
 
@@ -421,6 +443,20 @@ class AuthRepositoryImpl implements AuthRepository {
       return DateTime.now();
     } catch (e) {
       return DateTime.now();
+    }
+  }
+
+  // Added method to check if user is logged in
+  @override
+  Future<bool> isLoggedIn() async {
+    try {
+      final accessToken = await _secureStorage.read(key: _accessTokenKey);
+      final isLoggedIn = accessToken != null && accessToken.isNotEmpty;
+      print('🟡 AuthRepositoryImpl: isLoggedIn = $isLoggedIn');
+      return isLoggedIn;
+    } catch (e) {
+      print('🔴 AuthRepositoryImpl: Error checking login status: $e');
+      return false;
     }
   }
 }

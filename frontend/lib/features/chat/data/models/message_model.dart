@@ -1,21 +1,14 @@
 import 'package:frontend/features/chat/domain/entities/message_entity.dart';
 
 class MessageModel extends MessageEntity {
-  MessageModel({
-    required String id,
-    required String teamId,
-    required String senderId,
-    required String senderName,
-    required String content,
-    required DateTime timestamp,
-  }) : super(
-         id: id,
-         teamId: teamId,
-         senderId: senderId,
-         senderName: senderName,
-         content: content,
-         timestamp: timestamp,
-       );
+  const MessageModel({
+    required super.id,
+    required super.teamId,
+    required super.senderId,
+    required super.senderName,
+    required super.content,
+    required super.timestamp,
+  });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     // Handle both schema formats (teamId/team, senderId/sender)

@@ -25,15 +25,19 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
   bool _hasText = false;
+  late ChatCubit _chatCubit; // Keep reference to the cubit
 
   @override
   void initState() {
     super.initState();
     _messageController.addListener(_onTextChanged);
+    // Get the singleton ChatCubit
+    _chatCubit = di.getIt<ChatCubit>();
     _initializeChat();
   }
 
   void _onTextChanged() {
+    if (!mounted) return;
     setState(() {
       _hasText = _messageController.text.trim().isNotEmpty;
     });
@@ -44,25 +48,30 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
       final authRepository = di.getIt<AuthRepository>();
       final userResult = await authRepository.getCurrentUser();
 
+      if (!mounted) return;
+
       userResult.fold(
         (failure) {
           print('❌ Failed to get current user: $failure');
+          if (!mounted) return;
           setState(() {
             _isLoading = false;
           });
         },
         (user) {
+          if (!mounted) return;
           setState(() {
             _currentUser = user;
             _isLoading = false;
           });
 
-          final chatCubit = context.read<ChatCubit>();
-          chatCubit.connectToChat(widget.teamId, widget.accessToken, user);
+          // Use the singleton cubit instance
+          _chatCubit.connectToChat(widget.teamId, widget.accessToken, user);
         },
       );
     } catch (e) {
       print('❌ Error initializing chat: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -72,7 +81,8 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   void _sendMessage() {
     final content = _messageController.text.trim();
     if (content.isNotEmpty) {
-      context.read<ChatCubit>().sendMessage(widget.teamId, content);
+      // Use the singleton cubit instance
+      _chatCubit.sendMessage(widget.teamId, content);
       _messageController.clear();
     }
   }
@@ -113,235 +123,244 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
       );
     }
 
-    return BlocConsumer<ChatCubit, ChatState>(
-      listener: (context, state) {
-        if (state.status == ChatStatus.error && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage ?? 'An error occurred'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      },
-      builder: (context, state) {
-        if (state.status == ChatStatus.connecting ||
-            state.status == ChatStatus.loading) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    // Provide the singleton cubit to the widget tree
+    return BlocProvider.value(
+      value: _chatCubit,
+      child: BlocConsumer<ChatCubit, ChatState>(
+        listener: (context, state) {
+          if (state.status == ChatStatus.error && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.errorMessage ?? 'An error occurred'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        builder: (context, state) {
+          final isConnected = state.isConnected;
 
-        return Column(
-          children: [
-            // Connection status indicator
-            if (state.isConnected != null)
+          if (state.status == ChatStatus.connecting ||
+              state.status == ChatStatus.loading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return Column(
+            children: [
+              // Connection status indicator
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                color: state.isConnected!
+                color: isConnected
                     ? Colors.green.withOpacity(0.1)
                     : Colors.red.withOpacity(0.1),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      state.isConnected! ? Icons.circle : Icons.circle_outlined,
+                      isConnected ? Icons.circle : Icons.circle_outlined,
                       size: 8,
-                      color: state.isConnected! ? Colors.green : Colors.red,
+                      color: isConnected ? Colors.green : Colors.red,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      state.isConnected! ? 'Connected' : 'Disconnected',
+                      isConnected ? 'Connected' : 'Disconnected',
                       style: TextStyle(
                         fontSize: 12,
-                        color: state.isConnected! ? Colors.green : Colors.red,
+                        color: isConnected ? Colors.green : Colors.red,
                       ),
                     ),
                   ],
                 ),
               ),
 
-            // Chat messages
-            Expanded(
-              child: state.messages.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No messages yet',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                          Text(
-                            'Start a conversation!',
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      // REMOVED: reverse: true - This was causing messages to be inverted
-                      itemCount: state.messages.length,
-                      itemBuilder: (context, index) {
-                        final message = state.messages[index];
-                        final isCurrentUser =
-                            message.senderId == _currentUser!.id;
+              // Chat messages
+              Expanded(
+                child: state.messages.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No messages yet',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            Text(
+                              'Start a conversation!',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: state.messages.length,
+                        itemBuilder: (context, index) {
+                          final message = state.messages[index];
+                          final isCurrentUser =
+                              message.senderId == _currentUser!.id;
 
-                        return Container(
-                          margin: const EdgeInsets.symmetric(
-                            vertical: 4,
-                            horizontal: 8,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: isCurrentUser
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
-                            children: [
-                              if (!isCurrentUser)
-                                CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: Colors.blue,
-                                  child: Text(
-                                    message.senderName.isNotEmpty
-                                        ? message.senderName[0].toUpperCase()
-                                        : '?',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                          return Container(
+                            margin: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 8,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: isCurrentUser
+                                  ? MainAxisAlignment.end
+                                  : MainAxisAlignment.start,
+                              children: [
+                                if (!isCurrentUser)
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: Colors.blue,
+                                    child: Text(
+                                      message.senderName.isNotEmpty
+                                          ? message.senderName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              if (!isCurrentUser) const SizedBox(width: 8),
-                              Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: isCurrentUser
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.surfaceVariant,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (!isCurrentUser)
-                                        Text(
-                                          message.senderName,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: Theme.of(
+                                if (!isCurrentUser) const SizedBox(width: 8),
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isCurrentUser
+                                          ? Theme.of(
                                               context,
-                                            ).colorScheme.onSurfaceVariant,
+                                            ).colorScheme.primary
+                                          : Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (!isCurrentUser)
+                                          Text(
+                                            message.senderName,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        if (!isCurrentUser)
+                                          const SizedBox(height: 4),
+                                        Text(
+                                          message.content,
+                                          style: TextStyle(
+                                            color: isCurrentUser
+                                                ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.onPrimary
+                                                : Theme.of(
+                                                    context,
+                                                  ).colorScheme.onSurface,
                                           ),
                                         ),
-                                      if (!isCurrentUser)
                                         const SizedBox(height: 4),
-                                      Text(
-                                        message.content,
-                                        style: TextStyle(
-                                          color: isCurrentUser
-                                              ? Theme.of(
-                                                  context,
-                                                ).colorScheme.onPrimary
-                                              : Theme.of(
-                                                  context,
-                                                ).colorScheme.onSurface,
+                                        Text(
+                                          '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color:
+                                                (isCurrentUser
+                                                        ? Theme.of(context)
+                                                              .colorScheme
+                                                              .onPrimary
+                                                        : Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurface)
+                                                    .withOpacity(0.7),
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color:
-                                              (isCurrentUser
-                                                      ? Theme.of(
-                                                          context,
-                                                        ).colorScheme.onPrimary
-                                                      : Theme.of(
-                                                          context,
-                                                        ).colorScheme.onSurface)
-                                                  .withOpacity(0.7),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              if (isCurrentUser) const SizedBox(width: 8),
-                              if (isCurrentUser)
-                                CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: Colors.green,
-                                  child: Text(
-                                    'You',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
+                                      ],
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-
-            // Message input field
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
+                                if (isCurrentUser) const SizedBox(width: 8),
+                                if (isCurrentUser)
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: Colors.green,
+                                    child: Text(
+                                      'You',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                      onSubmitted: (value) => _sendMessage(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _hasText
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.grey, // Changes color based on text input
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.send,
-                        color: _hasText ? Colors.white : Colors.white70,
-                      ),
-                      onPressed: _hasText ? _sendMessage : null,
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ],
-        );
-      },
+
+              // Message input field
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: InputDecoration(
+                          hintText: 'Type a message...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        onSubmitted: (value) => _sendMessage(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _hasText
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey,
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.send,
+                          color: _hasText ? Colors.white : Colors.white70,
+                        ),
+                        onPressed: _hasText ? _sendMessage : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -349,9 +368,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   void dispose() {
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
-
-    // Only disconnect if we're actually leaving the team details page
-    // Don't dispose the cubit here as it's managed by Provider
+    // Don't dispose the cubit here since it's a singleton
     super.dispose();
   }
 }

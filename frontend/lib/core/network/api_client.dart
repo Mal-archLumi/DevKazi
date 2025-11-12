@@ -1,6 +1,4 @@
-// core/network/api_client.dart
 import 'dart:developer';
-import 'dart:io';
 import 'dart:math' hide log;
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -58,15 +56,20 @@ class ApiClient {
     );
   }
 
-  Future<ApiResponse<T>> get<T>(
+  Future<ApiResponse<T>> _request<T>(
+    String method,
     String path, {
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     bool requiresAuth = false,
   }) async {
     try {
-      log('🟡 ApiClient: GET $path, requiresAuth: $requiresAuth');
+      log('🟡 ApiClient: $method $path, requiresAuth: $requiresAuth');
 
-      final options = Options(extra: {'requiresAuth': requiresAuth});
+      final options = Options(
+        extra: {'requiresAuth': requiresAuth},
+        method: method,
+      );
 
       if (requiresAuth) {
         final token = await _secureStorage.read(key: 'access_token');
@@ -81,20 +84,23 @@ class ApiClient {
         }
       }
 
-      final response = await _dio.get(
+      final Response response = await _dio.request(
         path,
+        data: data,
         queryParameters: queryParameters,
         options: options,
       );
 
-      log('🟢 ApiClient: GET $path - Success - Status: ${response.statusCode}');
+      log(
+        '🟢 ApiClient: $method $path - Success - Status: ${response.statusCode}',
+      );
       return ApiResponse<T>(
         data: response.data,
         statusCode: response.statusCode!,
       );
     } on DioException catch (e) {
       log(
-        '🔴 ApiClient: GET $path - DioError - Status: ${e.response?.statusCode}, Message: ${e.message}',
+        '🔴 ApiClient: $method $path - DioError - Status: ${e.response?.statusCode}, Message: ${e.message}',
       );
       log('🔴 ApiClient: Headers sent: ${e.requestOptions.headers}');
       log('🔴 ApiClient: Response data: ${e.response?.data}');
@@ -104,10 +110,23 @@ class ApiClient {
         message: e.response?.data?['message'] ?? e.message,
       );
     } catch (e, stackTrace) {
-      log('🔴 ApiClient: GET $path - Unexpected error - $e');
+      log('🔴 ApiClient: $method $path - Unexpected error - $e');
       log('🔴 Stack trace: $stackTrace');
       return ApiResponse<T>(statusCode: 500, message: 'Network error occurred');
     }
+  }
+
+  Future<ApiResponse<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    bool requiresAuth = false,
+  }) async {
+    return _request<T>(
+      'GET',
+      path,
+      queryParameters: queryParameters,
+      requiresAuth: requiresAuth,
+    );
   }
 
   Future<ApiResponse<T>> post<T>(
@@ -115,48 +134,30 @@ class ApiClient {
     dynamic data,
     bool requiresAuth = false,
   }) async {
-    try {
-      log('🟡 ApiClient: POST $path, requiresAuth: $requiresAuth');
+    return _request<T>('POST', path, data: data, requiresAuth: requiresAuth);
+  }
 
-      final options = Options(extra: {'requiresAuth': requiresAuth});
+  Future<ApiResponse<T>> put<T>(
+    String path, {
+    dynamic data,
+    bool requiresAuth = false,
+  }) async {
+    return _request<T>('PUT', path, data: data, requiresAuth: requiresAuth);
+  }
 
-      if (requiresAuth) {
-        final token = await _secureStorage.read(key: 'access_token');
-        log('🟡 ApiClient: Auth required, token exists: ${token != null}');
-        if (token != null) {
-          log(
-            '🟡 ApiClient: Sending token: ${token.substring(0, min(20, token.length))}...',
-          );
-          options.headers = {'Authorization': 'Bearer $token'};
-        } else {
-          log('🔴 ApiClient: No token found for authenticated request!');
-        }
-      }
+  Future<ApiResponse<T>> delete<T>(
+    String path, {
+    dynamic data,
+    bool requiresAuth = false,
+  }) async {
+    return _request<T>('DELETE', path, data: data, requiresAuth: requiresAuth);
+  }
 
-      final response = await _dio.post(path, data: data, options: options);
-
-      log(
-        '🟢 ApiClient: POST $path - Success - Status: ${response.statusCode}',
-      );
-      return ApiResponse<T>(
-        data: response.data,
-        statusCode: response.statusCode!,
-      );
-    } on DioException catch (e) {
-      log(
-        '🔴 ApiClient: POST $path - DioError - Status: ${e.response?.statusCode}, Message: ${e.message}',
-      );
-      log('🔴 ApiClient: Headers sent: ${e.requestOptions.headers}');
-      log('🔴 ApiClient: Response data: ${e.response?.data}');
-
-      return ApiResponse<T>(
-        statusCode: e.response?.statusCode ?? 500,
-        message: e.response?.data?['message'] ?? e.message,
-      );
-    } catch (e, stackTrace) {
-      log('🔴 ApiClient: POST $path - Unexpected error - $e');
-      log('🔴 Stack trace: $stackTrace');
-      return ApiResponse<T>(statusCode: 500, message: 'Network error occurred');
-    }
+  Future<ApiResponse<T>> patch<T>(
+    String path, {
+    dynamic data,
+    bool requiresAuth = false,
+  }) async {
+    return _request<T>('PATCH', path, data: data, requiresAuth: requiresAuth);
   }
 }

@@ -16,6 +16,7 @@ class ChatCubit extends Cubit<ChatState> {
   final SendMessageUseCase sendMessageUseCase;
   final ChatRepository repository;
   StreamSubscription? _messageSubscription;
+  StreamSubscription? _connectionSubscription;
   final Logger _logger = Logger();
 
   // Store current user info
@@ -28,7 +29,11 @@ class ChatCubit extends Cubit<ChatState> {
     required this.repository,
   }) : super(const ChatState());
 
-  void connectToChat(String teamId, String token, UserEntity currentUser) {
+  Future<void> connectToChat(
+    String teamId,
+    String token,
+    UserEntity currentUser,
+  ) async {
     _currentUser = currentUser;
     _currentToken = token;
     _logger.i('ChatCubit: Connecting to chat for team: $teamId');
@@ -37,88 +42,129 @@ class ChatCubit extends Cubit<ChatState> {
 
     emit(state.copyWith(status: ChatStatus.connecting));
 
-    repository.connect(teamId, token).then((result) {
-      result.fold(
-        (failure) {
-          _logger.e('ChatCubit: Connection failed - $failure');
+    // Listen to connection events BEFORE connecting
+    _connectionSubscription = repository.onConnected.listen(
+      (_) {
+        _logger.i('ChatCubit: Socket connected event received');
+        // Connection confirmed, now load messages
+        loadMessages(teamId);
+        emit(
+          state.copyWith(
+            status: ChatStatus.connected,
+            isConnected: true,
+            errorMessage: null,
+          ),
+        );
+      },
+      onError: (error) {
+        _logger.e('ChatCubit: Connection stream error - $error');
+        emit(
+          state.copyWith(
+            status: ChatStatus.error,
+            errorMessage: 'Connection error: $error',
+            isConnected: false,
+          ),
+        );
+      },
+    );
+
+    // Start listening to messages
+    _listenToMessages();
+
+    // Connect to socket
+    final result = await repository.connect(teamId, token);
+
+    result.fold(
+      (failure) {
+        _logger.e('ChatCubit: Connection failed - $failure');
+        emit(
+          state.copyWith(
+            status: ChatStatus.error,
+            errorMessage: 'Connection failed: ${_mapFailureToMessage(failure)}',
+            isConnected: false,
+          ),
+        );
+        _connectionSubscription?.cancel();
+      },
+      (_) {
+        _logger.i('ChatCubit: Connection call completed successfully');
+        // If already connected (synchronous connection), load messages immediately
+        if (repository.isConnected) {
+          _logger.i(
+            'ChatCubit: Socket already connected, loading messages immediately',
+          );
+          loadMessages(teamId);
           emit(
             state.copyWith(
-              status: ChatStatus.error,
-              errorMessage:
-                  'Connection failed: ${_mapFailureToMessage(failure)}',
-              isConnected: false,
+              status: ChatStatus.connected,
+              isConnected: true,
+              errorMessage: null,
             ),
           );
-        },
-        (_) {
-          _logger.i(
-            'ChatCubit: Connection initiated, waiting for authentication...',
-          );
-          // Don't load messages immediately - wait for proper authentication
-          _listenToMessages();
-
-          // Set up authentication listener
-          repository.onAuthenticated.listen((_) {
-            _logger.i(
-              'ChatCubit: Authentication confirmed, loading messages...',
-            );
-            loadMessages(teamId);
-            emit(
-              state.copyWith(
-                status: ChatStatus.connected,
-                isConnected: true,
-                errorMessage: null,
-              ),
-            );
-          });
-        },
-      );
-    });
+        } else {
+          _logger.i('ChatCubit: Waiting for connection confirmation...');
+        }
+      },
+    );
   }
 
   void _listenToMessages() {
-    _messageSubscription = repository.messageStream.listen((message) {
-      _logger.d('Received message: ${message.id} from ${message.senderId}');
-      // Check if this message is a duplicate of an optimistic message
-      final isDuplicate = state.messages.any(
-        (existingMsg) =>
-            existingMsg.id.startsWith('temp_') &&
-            existingMsg.content == message.content &&
-            existingMsg.timestamp
-                    .difference(message.timestamp)
-                    .inSeconds
-                    .abs() <
-                5,
-      );
+    _messageSubscription?.cancel(); // Cancel existing subscription
 
-      if (isDuplicate) {
-        _logger.d(
-          'Replacing optimistic message with real message: ${message.id}',
-        );
-        // Replace the optimistic message with the real one
-        final updatedMessages = state.messages
-            .map(
-              (existingMsg) =>
-                  existingMsg.id.startsWith('temp_') &&
-                      existingMsg.content == message.content
-                  ? _processIncomingMessage(message)
-                  : existingMsg,
-            )
-            .toList();
+    _messageSubscription = repository.messageStream.listen(
+      (message) {
+        _logger.d('Received message: ${message.id} from ${message.senderId}');
 
-        emit(
-          state.copyWith(messages: updatedMessages, status: ChatStatus.loaded),
+        // Check if this message is a duplicate of an optimistic message
+        final isDuplicate = state.messages.any(
+          (existingMsg) =>
+              existingMsg.id.startsWith('temp-') &&
+              existingMsg.content == message.content &&
+              existingMsg.timestamp
+                      .difference(message.timestamp)
+                      .inSeconds
+                      .abs() <
+                  5,
         );
-      } else {
-        _logger.d('Adding new message: ${message.id}');
-        // Normal message processing
-        final processedMessage = _processIncomingMessage(message);
-        final updatedMessages = [...state.messages, processedMessage];
-        emit(
-          state.copyWith(messages: updatedMessages, status: ChatStatus.loaded),
-        );
-      }
-    });
+
+        if (isDuplicate) {
+          _logger.d(
+            'Replacing optimistic message with real message: ${message.id}',
+          );
+          // Replace the optimistic message with the real one
+          final updatedMessages = state.messages
+              .map(
+                (existingMsg) =>
+                    existingMsg.id.startsWith('temp-') &&
+                        existingMsg.content == message.content
+                    ? _processIncomingMessage(message)
+                    : existingMsg,
+              )
+              .toList();
+
+          emit(
+            state.copyWith(
+              messages: updatedMessages,
+              status: ChatStatus.loaded,
+            ),
+          );
+        } else {
+          _logger.d('Adding new message: ${message.id}');
+          // Normal message processing
+          final processedMessage = _processIncomingMessage(message);
+          final updatedMessages = [...state.messages, processedMessage];
+          emit(
+            state.copyWith(
+              messages: updatedMessages,
+              status: ChatStatus.loaded,
+            ),
+          );
+        }
+      },
+      onError: (error) {
+        _logger.e('Message stream error: $error');
+      },
+    );
   }
 
   MessageEntity _processIncomingMessage(MessageEntity message) {
@@ -129,38 +175,36 @@ class ChatCubit extends Cubit<ChatState> {
     return message;
   }
 
-  void loadMessages(String teamId) {
+  Future<void> loadMessages(String teamId) async {
     _logger.i('Loading messages for team: $teamId');
     emit(state.copyWith(status: ChatStatus.loading));
 
-    getMessagesUseCase(teamId).then((result) {
-      result.fold(
-        (failure) {
-          _logger.e(
-            'Failed to load messages: ${_mapFailureToMessage(failure)}',
-          );
-          emit(
-            state.copyWith(
-              status: ChatStatus.error,
-              errorMessage: _mapFailureToMessage(failure),
-            ),
-          );
-        },
-        (messages) {
-          _logger.i('Loaded ${messages.length} messages');
-          // Process messages to show "You" for current user's messages
-          final processedMessages = messages
-              .map(_processIncomingMessage)
-              .toList();
-          emit(
-            state.copyWith(
-              status: ChatStatus.loaded,
-              messages: processedMessages,
-            ),
-          );
-        },
-      );
-    });
+    final result = await getMessagesUseCase(teamId);
+
+    result.fold(
+      (failure) {
+        _logger.e('Failed to load messages: ${_mapFailureToMessage(failure)}');
+        emit(
+          state.copyWith(
+            status: ChatStatus.error,
+            errorMessage: _mapFailureToMessage(failure),
+          ),
+        );
+      },
+      (messages) {
+        _logger.i('Loaded ${messages.length} messages');
+        // Process messages to show "You" for current user's messages
+        final processedMessages = messages
+            .map(_processIncomingMessage)
+            .toList();
+        emit(
+          state.copyWith(
+            status: ChatStatus.loaded,
+            messages: processedMessages,
+          ),
+        );
+      },
+    );
   }
 
   void addOptimisticMessage(MessageEntity msg) {
@@ -207,7 +251,7 @@ class ChatCubit extends Cubit<ChatState> {
       id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
       teamId: teamId,
       senderId: _currentUser!.id,
-      senderName: 'You', // Will be shown as "You" for current user
+      senderName: 'You',
       content: content.trim(),
       timestamp: DateTime.now(),
     );
@@ -255,10 +299,11 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  void disconnectFromChat() {
+  Future<void> disconnectFromChat() async {
     _logger.i('Disconnecting from chat');
     _messageSubscription?.cancel();
-    repository.disconnect();
+    _connectionSubscription?.cancel();
+    await repository.disconnect();
     _currentUser = null;
     _currentToken = null;
     emit(
@@ -278,6 +323,7 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> close() {
     _logger.i('Closing ChatCubit');
     _messageSubscription?.cancel();
+    _connectionSubscription?.cancel();
     disconnectFromChat();
     return super.close();
   }

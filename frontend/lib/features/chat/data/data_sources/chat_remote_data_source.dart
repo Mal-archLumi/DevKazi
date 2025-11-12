@@ -1,4 +1,3 @@
-// lib/features/chat/data/data_sources/chat_remote_data_source.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:get_it/get_it.dart';
@@ -9,13 +8,11 @@ import 'package:frontend/core/errors/exceptions.dart';
 import 'package:frontend/core/network/network_info.dart';
 import 'package:frontend/features/chat/data/models/message_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-// Import AuthRepository
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
 
 abstract class ChatRemoteDataSource {
   Stream<MessageModel> get messageStream;
-  Stream<void> get onAuthenticated;
+  Stream<void> get onConnected;
   Future<void> connect(String teamId, String token);
   Future<void> disconnect();
   Future<void> sendMessage(String teamId, String content);
@@ -24,17 +21,18 @@ abstract class ChatRemoteDataSource {
 }
 
 class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
-  late io.Socket _socket;
+  io.Socket? _socket;
   final NetworkInfo _networkInfo;
   final StreamController<MessageModel> _messageStreamController =
       StreamController<MessageModel>.broadcast();
-  final StreamController<void> _authenticatedStreamController =
+  final StreamController<void> _connectedStreamController =
       StreamController<void>.broadcast();
 
   final String _baseUrl;
-  bool _isConnected = false;
   String? _currentTeamId;
   String? _currentToken;
+  Completer<void>? _connectionCompleter;
+  Timer? _reconnectTimer;
 
   ChatRemoteDataSourceImpl({required NetworkInfo networkInfo})
     : _networkInfo = networkInfo,
@@ -43,23 +41,47 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           'https://fattiest-ebony-supplely.ngrok-free.dev';
 
   void _setupSocketListeners() {
-    _socket.on('connect', (_) {
-      print('✅ SOCKET CONNECTED - ID: ${_socket.id}');
-      _isConnected = true;
+    if (_socket == null) return;
 
-      // Send manual authentication as backup
-      if (_currentToken != null) {
-        print('🔐 Sending manual authentication as backup...');
-        _socket.emit('authenticate', {'token': _currentToken});
+    _socket!.onConnect((_) {
+      print('✅ SOCKET CONNECTED - ID: ${_socket!.id}');
+      _connectedStreamController.add(null);
+
+      // Complete connection completer
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.complete();
+        _connectionCompleter = null;
+      }
+
+      // Cancel any reconnect timer
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+    });
+
+    _socket!.onDisconnect((reason) {
+      print('🔴 SOCKET DISCONNECTED: $reason');
+
+      // Attempt to reconnect if we have credentials
+      if (_currentTeamId != null && _currentToken != null) {
+        print('🔄 Scheduling reconnect in 3 seconds...');
+        _reconnectTimer?.cancel();
+        _reconnectTimer = Timer(Duration(seconds: 3), () {
+          if (_currentTeamId != null && _currentToken != null) {
+            print('🔄 Auto-reconnecting...');
+            connect(_currentTeamId!, _currentToken!);
+          }
+        });
+      }
+
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.completeError(
+          Exception('Socket disconnected: $reason'),
+        );
+        _connectionCompleter = null;
       }
     });
 
-    _socket.on('disconnect', (reason) {
-      print('🔴 SOCKET DISCONNECTED: $reason');
-      _isConnected = false;
-    });
-
-    _socket.on('new_message', (data) {
+    _socket!.on('new_message', (data) {
       try {
         print('📨 Received new message: $data');
         final message = MessageModel.fromJson(data);
@@ -69,42 +91,44 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       }
     });
 
-    _socket.on('error', (err) => print('❌ SOCKET ERROR: $err'));
-
-    _socket.on('authentication_error', (data) {
-      print('🔐 AUTH FAILED: $data');
-    });
-
-    _socket.on('authenticated', (data) {
-      print('🎉 AUTH SUCCESS! $data');
-      _authenticatedStreamController.add(null);
-
-      // Now that we're authenticated, join the team
-      if (_currentTeamId != null) {
-        print('🚀 Joining team after authentication: $_currentTeamId');
-        _socket.emit('join_team', {'teamId': _currentTeamId});
+    _socket!.on('error', (err) {
+      print('❌ SOCKET ERROR: $err');
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.completeError(Exception('Socket error: $err'));
+        _connectionCompleter = null;
       }
     });
 
-    _socket.on('authentication_required', (data) {
-      print('⚠️ AUTH REQUIRED: $data');
-      // Try to authenticate again if we have a token
-      if (_currentToken != null) {
-        print('🔄 Retrying authentication...');
-        _socket.emit('authenticate', {'token': _currentToken});
-      }
+    _socket!.on('connection_success', (data) {
+      print('🎉 CONNECTION SUCCESS: $data');
     });
 
-    _socket.on('connection_success', (data) {
-      print('✅ CONNECTION SUCCESS: $data');
-    });
-
-    _socket.on('joined_team', (data) {
+    _socket!.on('joined_team', (data) {
       print('✅ JOINED TEAM: $data');
     });
 
-    _socket.on('user_joined', (data) {
-      print('👤 USER JOINED: $data');
+    _socket!.on('connect_error', (error) {
+      print('❌ CONNECT ERROR: $error');
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.completeError(
+          Exception('Connection failed: $error'),
+        );
+        _connectionCompleter = null;
+      }
+    });
+
+    _socket!.on('authentication_error', (data) {
+      print('🔐 AUTH ERROR: $data');
+      if (_connectionCompleter != null && !_connectionCompleter!.isCompleted) {
+        _connectionCompleter!.completeError(
+          Exception('Authentication failed: $data'),
+        );
+        _connectionCompleter = null;
+      }
+    });
+
+    _socket!.on('message_sent', (data) {
+      print('✅ MESSAGE SENT CONFIRMATION: $data');
     });
   }
 
@@ -112,10 +136,10 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   Stream<MessageModel> get messageStream => _messageStreamController.stream;
 
   @override
-  Stream<void> get onAuthenticated => _authenticatedStreamController.stream;
+  Stream<void> get onConnected => _connectedStreamController.stream;
 
   @override
-  bool get isConnected => _isConnected;
+  bool get isConnected => _socket?.connected ?? false;
 
   @override
   Future<void> connect(String teamId, String token) async {
@@ -125,73 +149,79 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     print('🔄 Connecting to socket for team: $teamId');
     print('🔑 Token: ${token.substring(0, 20)}...');
 
-    // Dispose existing socket if any
-    if (_socket.connected) {
+    // Cleanup existing socket
+    if (_socket != null && _socket!.connected) {
       print('🔄 Socket already connected, reconnecting...');
-      _socket.disconnect();
+      _socket!.disconnect();
       await Future.delayed(Duration(milliseconds: 500));
     }
 
+    _connectionCompleter = Completer<void>();
+
     try {
-      // CRITICAL FIX: Create socket with ALL authentication methods
+      // Configure socket with auth in multiple locations for maximum compatibility
       _socket = io.io(
         _baseUrl,
         io.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
-            .disableReconnection()
-            .setTimeout(60000)
-            // 🚨 CRITICAL: Pass token in BOTH auth and query for maximum compatibility
-            .setAuth({'token': token}) // Socket.IO v4 auth
-            .setQuery({
-              'token': token,
-            }) // Query parameter (Socket.IO v2/v3 and backup)
-            .setExtraHeaders({
-              'Authorization': 'Bearer $token', // HTTP headers
+            .enableReconnection() // Enable auto-reconnection
+            .setReconnectionAttempts(5)
+            .setReconnectionDelay(2000)
+            .setAuth({
+              'token': token, // PRIMARY: Standard Socket.IO auth
             })
+            .setQuery({
+              'teamId': teamId,
+              'token': token, // FALLBACK: Query parameter
+            })
+            .setExtraHeaders({
+              'authorization': 'Bearer $token', // FALLBACK: HTTP header style
+            })
+            .setTimeout(30000)
             .build(),
       );
 
-      print('🔧 Socket configured with authentication in handshake');
+      print('🔧 Socket configured with multi-location auth and auto-reconnect');
 
       // Setup listeners
       _setupSocketListeners();
 
-      final completer = Completer<void>();
+      // Set connection timeout
       final timer = Timer(Duration(seconds: 15), () {
-        if (!completer.isCompleted) {
-          completer.completeError(
+        if (_connectionCompleter != null &&
+            !_connectionCompleter!.isCompleted) {
+          print('⏰ Connection timeout after 15 seconds');
+          _connectionCompleter!.completeError(
             TimeoutException('Connection timeout after 15 seconds'),
           );
+          _connectionCompleter = null;
         }
       });
 
-      _socket.once('connect', (_) {
-        timer.cancel();
-        print('✅ SOCKET CONNECTED ID: ${_socket.id}');
-        print('⏳ Waiting for authentication...');
-        // Authentication should happen automatically via handshake
-        completer.complete();
-      });
+      print('🔌 Connecting socket...');
+      _socket!.connect();
 
-      _socket.once('connect_error', (error) {
-        timer.cancel();
-        print('❌ CONNECT ERROR: $error');
-        completer.completeError(Exception('Connection failed: $error'));
-      });
+      // Wait for connection
+      await _connectionCompleter!.future;
+      timer.cancel();
 
-      _socket.once('connect_timeout', (_) {
-        timer.cancel();
-        completer.completeError(TimeoutException('Connection timeout'));
-      });
+      print('✅ Socket connected successfully');
+      print('✅ Socket connection state: ${_socket!.connected}');
 
-      // Connect manually (since we disabled autoConnect)
-      print('🔌 Connecting socket with handshake authentication...');
-      _socket.connect();
+      // Join team after connection
+      _socket!.emit('join_team', {'teamId': teamId});
+      print('🚀 Sent join_team request for team: $teamId');
 
-      await completer.future;
+      // Wait a bit for join_team to complete
+      await Future.delayed(Duration(milliseconds: 500));
+
+      print('✅ Final connection state: ${_socket!.connected}');
     } catch (e) {
       print('❌ CONNECTION ERROR: $e');
+      _socket?.disconnect();
+      _socket = null;
+      _connectionCompleter = null;
       rethrow;
     }
   }
@@ -199,16 +229,45 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   @override
   Future<void> disconnect() async {
     print('🔌 Disconnecting socket...');
-    _socket.disconnect();
-    _isConnected = false;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _socket?.disconnect();
+    _socket?.dispose();
+    _socket = null;
     _currentTeamId = null;
     _currentToken = null;
+    _connectionCompleter = null;
   }
 
   @override
   Future<void> sendMessage(String teamId, String content) async {
-    if (!_isConnected) {
-      throw Exception('Socket not connected');
+    print('💬 Attempting to send message...');
+    print('🔍 Socket null? ${_socket == null}');
+    print('🔍 Socket connected? ${_socket?.connected}');
+
+    if (_socket == null) {
+      print('❌ Socket is null!');
+      throw Exception('Socket not initialized');
+    }
+
+    if (!_socket!.connected) {
+      print('❌ Socket not connected! Attempting reconnect...');
+
+      // Try to reconnect if we have credentials
+      if (_currentTeamId != null && _currentToken != null) {
+        await connect(_currentTeamId!, _currentToken!);
+
+        // Wait a bit for connection to establish
+        await Future.delayed(Duration(milliseconds: 1000));
+
+        if (!_socket!.connected) {
+          throw Exception('Socket not connected after reconnect attempt');
+        }
+      } else {
+        throw Exception(
+          'Socket not connected and no credentials for reconnect',
+        );
+      }
     }
 
     final completer = Completer<void>();
@@ -219,22 +278,37 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     });
 
     print('💬 Sending message to team $teamId: "$content"');
+    print('🔍 Socket ID: ${_socket!.id}');
 
-    _socket.emitWithAck(
-      'send_message',
-      {'teamId': teamId, 'content': content},
-      ack: (res) {
-        timer.cancel();
-        if (res is Map && res['error'] != null) {
-          completer.completeError(ServerFailure(res['error']));
-        } else {
-          print('✅ Message sent successfully');
-          completer.complete();
-        }
-      },
-    );
+    try {
+      _socket!.emitWithAck(
+        'send_message',
+        {'teamId': teamId, 'content': content},
+        ack: (res) {
+          timer.cancel();
+          print('✅ Received ACK: $res');
+          if (res is Map && res['error'] != null) {
+            completer.completeError(ServerFailure(res['error']));
+          } else {
+            print('✅ Message sent successfully');
+            completer.complete();
+          }
+        },
+      );
 
-    await completer.future;
+      await completer.future.timeout(
+        Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException(
+            'Message send timeout - no acknowledgment received',
+          );
+        },
+      );
+    } catch (e) {
+      timer.cancel();
+      print('❌ Error in sendMessage: $e');
+      rethrow;
+    }
   }
 
   @override
@@ -247,7 +321,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         throw ServerFailure('No authentication token found');
       }
 
-      final baseUrl = _baseUrl + '/api/v1';
+      final baseUrl = '$_baseUrl/api/v1';
       print('📡 HTTP: Loading messages for team $teamId');
 
       final response = await http
@@ -278,5 +352,12 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       print('❌ HTTP GET MESSAGES ERROR: $e');
       rethrow;
     }
+  }
+
+  void dispose() {
+    _reconnectTimer?.cancel();
+    _messageStreamController.close();
+    _connectedStreamController.close();
+    _socket?.dispose();
   }
 }

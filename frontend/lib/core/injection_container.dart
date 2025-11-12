@@ -38,13 +38,21 @@ import '../../features/chat/domain/use_cases/get_messages_use_case.dart';
 import '../../features/chat/domain/use_cases/send_message_use_case.dart';
 import '../../features/chat/presentation/cubits/chat_cubit.dart';
 
+// User
+import '../../features/user/data/data_sources/user_remote_data_source.dart';
+import '../../features/user/data/data_sources/user_local_data_source.dart';
+import '../../features/user/data/repositories/user_repository_impl.dart';
+import '../../features/user/domain/repositories/user_repository.dart';
+import '../../features/user/domain/use_cases/get_current_user_use_case.dart';
+import '../../features/user/domain/use_cases/update_profile_use_case.dart';
+import '../../features/user/domain/use_cases/logout_use_case.dart';
+import '../../features/user/presentation/cubits/user_cubit.dart';
+
 final getIt = GetIt.instance;
 
 Future<void> initDependencies() async {
-  // ✅ Load environment variables (make sure dotenv is initialized in main.dart)
   await dotenv.load(fileName: ".env");
 
-  // ✅ Read API URL from .env or fallback to ngrok URL
   final baseUrl =
       dotenv.env['API_URL'] ??
       'https://fattiest-ebony-supplely.ngrok-free.dev/api/v1';
@@ -83,7 +91,7 @@ Future<void> initDependencies() async {
     ),
   );
 
-  // Data Sources
+  // Team dependencies
   getIt.registerLazySingleton<TeamRemoteDataSource>(
     () => TeamRemoteDataSourceImpl(client: getIt<ApiClient>()),
   );
@@ -92,7 +100,6 @@ Future<void> initDependencies() async {
     () => TeamLocalDataSourceImpl(),
   );
 
-  // Repositories
   getIt.registerLazySingleton<TeamRepository>(
     () => TeamRepositoryImpl(
       remoteDataSource: getIt<TeamRemoteDataSource>(),
@@ -101,7 +108,6 @@ Future<void> initDependencies() async {
     ),
   );
 
-  // Use Cases
   getIt.registerLazySingleton<GetUserTeamsUseCase>(
     () => GetUserTeamsUseCase(getIt<TeamRepository>()),
   );
@@ -122,7 +128,6 @@ Future<void> initDependencies() async {
     () => JoinTeamUseCase(getIt<TeamRepository>()),
   );
 
-  // Blocs/Cubits
   getIt.registerFactory<TeamsCubit>(
     () => TeamsCubit(
       getUserTeamsUseCase: getIt<GetUserTeamsUseCase>(),
@@ -142,36 +147,70 @@ Future<void> initDependencies() async {
     ),
   );
 
-  // Chat dependencies - FIXED: No more socket factory, data source handles it internally
-
-  // Data sources
-  getIt.registerFactory<ChatRemoteDataSource>(
+  // ⚠️ CRITICAL FIX: Change from registerFactory to registerLazySingleton
+  // This ensures the same socket instance is used throughout the app
+  getIt.registerLazySingleton<ChatRemoteDataSource>(
     () => ChatRemoteDataSourceImpl(networkInfo: getIt<NetworkInfo>()),
   );
 
-  // Repository
-  getIt.registerFactory<ChatRepository>(
+  getIt.registerLazySingleton<ChatRepository>(
     () => ChatRepositoryImpl(
       remoteDataSource: getIt<ChatRemoteDataSource>(),
       networkInfo: getIt<NetworkInfo>(),
     ),
   );
 
-  // Use Cases
-  getIt.registerFactory<GetMessagesUseCase>(
+  getIt.registerLazySingleton<GetMessagesUseCase>(
     () => GetMessagesUseCase(getIt<ChatRepository>()),
   );
 
-  getIt.registerFactory<SendMessageUseCase>(
+  getIt.registerLazySingleton<SendMessageUseCase>(
     () => SendMessageUseCase(getIt<ChatRepository>()),
   );
 
-  // Cubit - Now takes teamId and token as parameters
-  getIt.registerFactoryParam<ChatCubit, String, String>((teamId, token) {
-    return ChatCubit(
+  // Changed to LazySingleton so the same cubit instance is reused
+  getIt.registerLazySingleton<ChatCubit>(
+    () => ChatCubit(
       getMessagesUseCase: getIt<GetMessagesUseCase>(),
       sendMessageUseCase: getIt<SendMessageUseCase>(),
       repository: getIt<ChatRepository>(),
-    );
-  });
+    ),
+  );
+
+  // User dependencies
+  getIt.registerLazySingleton<UserRemoteDataSource>(
+    () => UserRemoteDataSourceImpl(client: getIt<ApiClient>()),
+  );
+
+  getIt.registerLazySingleton<UserLocalDataSource>(
+    () => UserLocalDataSourceImpl(secureStorage: getIt<FlutterSecureStorage>()),
+  );
+
+  getIt.registerLazySingleton<UserRepository>(
+    () => UserRepositoryImpl(
+      remoteDataSource: getIt<UserRemoteDataSource>(),
+      localDataSource: getIt<UserLocalDataSource>(),
+      authRepository: getIt<AuthRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetCurrentUserUseCase>(
+    () => GetCurrentUserUseCase(getIt<UserRepository>()),
+  );
+
+  getIt.registerLazySingleton<UpdateProfileUseCase>(
+    () => UpdateProfileUseCase(getIt<UserRepository>()),
+  );
+
+  getIt.registerLazySingleton<LogoutUseCase>(
+    () => LogoutUseCase(getIt<UserRepository>()),
+  );
+
+  getIt.registerLazySingleton<UserCubit>(
+    () => UserCubit(
+      getCurrentUserUseCase: getIt<GetCurrentUserUseCase>(),
+      updateProfileUseCase: getIt<UpdateProfileUseCase>(),
+      logoutUseCase: getIt<LogoutUseCase>(),
+    ),
+  );
 }

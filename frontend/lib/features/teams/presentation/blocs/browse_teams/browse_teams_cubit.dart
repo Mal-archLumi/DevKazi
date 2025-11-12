@@ -21,6 +21,8 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
   }) : super(BrowseTeamsState.initial());
 
   Future<void> loadAllTeams() async {
+    if (isClosed) return;
+
     emit(state.copyWith(status: BrowseTeamsStatus.loading));
 
     try {
@@ -29,13 +31,14 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
 
       userTeamsResult.fold(
         (failure) {
-          // If we can't get user teams, show error
-          emit(
-            state.copyWith(
-              status: BrowseTeamsStatus.error,
-              errorMessage: 'Failed to load user teams',
-            ),
-          );
+          if (!isClosed) {
+            emit(
+              state.copyWith(
+                status: BrowseTeamsStatus.error,
+                errorMessage: 'Failed to load user teams',
+              ),
+            );
+          }
         },
         (userTeams) async {
           // Now get ALL teams
@@ -43,45 +46,51 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
 
           allTeamsResult.fold(
             (failure) {
-              emit(
-                state.copyWith(
-                  status: BrowseTeamsStatus.error,
-                  errorMessage: _mapFailureToMessage(failure),
-                ),
-              );
+              if (!isClosed) {
+                emit(
+                  state.copyWith(
+                    status: BrowseTeamsStatus.error,
+                    errorMessage: _mapFailureToMessage(failure),
+                  ),
+                );
+              }
             },
             (allTeams) {
-              // Filter out teams that user is already a member of
-              final userTeamIds = userTeams.map((team) => team.id).toSet();
-              final browseTeams = allTeams
-                  .where((team) => !userTeamIds.contains(team.id))
-                  .toList();
+              if (!isClosed) {
+                // Filter out teams that user is already a member of
+                final userTeamIds = userTeams.map((team) => team.id).toSet();
+                final browseTeams = allTeams
+                    .where((team) => !userTeamIds.contains(team.id))
+                    .toList();
 
-              print(
-                '🟢 Filtered ${allTeams.length} total teams to ${browseTeams.length} browse teams',
-              );
-              print(
-                '🟢 User has ${userTeams.length} teams, showing ${browseTeams.length} other teams',
-              );
+                debugPrint(
+                  '🟢 Filtered ${allTeams.length} total teams to ${browseTeams.length} browse teams',
+                );
+                debugPrint(
+                  '🟢 User has ${userTeams.length} teams, showing ${browseTeams.length} other teams',
+                );
 
-              emit(
-                state.copyWith(
-                  status: BrowseTeamsStatus.loaded,
-                  teams: browseTeams,
-                  filteredTeams: browseTeams,
-                ),
-              );
+                emit(
+                  state.copyWith(
+                    status: BrowseTeamsStatus.loaded,
+                    teams: browseTeams,
+                    filteredTeams: browseTeams,
+                  ),
+                );
+              }
             },
           );
         },
       );
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: BrowseTeamsStatus.error,
-          errorMessage: 'Unexpected error: $e',
-        ),
-      );
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            status: BrowseTeamsStatus.error,
+            errorMessage: 'Unexpected error: $e',
+          ),
+        );
+      }
     }
   }
 

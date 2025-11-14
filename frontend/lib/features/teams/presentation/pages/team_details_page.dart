@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
-import 'package:provider/provider.dart';
 import '../blocs/team_details/team_details_cubit.dart';
 import '../blocs/team_details/team_details_state.dart';
 import '../widgets/team_details_app_bar.dart';
@@ -13,7 +12,8 @@ import '../widgets/team_members_tab.dart';
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/core/injection_container.dart' as di;
-import 'package:frontend/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:frontend/features/user/presentation/cubits/user_cubit.dart'; // ADD THIS
+import 'package:frontend/features/auth/domain/entities/user_entity.dart';
 
 class TeamDetailsPage extends StatefulWidget {
   final TeamEntity team;
@@ -32,7 +32,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   @override
   void initState() {
     super.initState();
-    context.read<TeamDetailsCubit>().setTeam(widget.team);
+    context.read<TeamDetailsCubit>().loadTeamWithMembers(widget.team.id);
     _loadAccessToken();
   }
 
@@ -40,6 +40,52 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     try {
       final authRepository = di.getIt<AuthRepository>();
       final token = await authRepository.getAccessToken();
+
+      // Get current user from UserCubit
+      final userCubit = di.getIt<UserCubit>();
+
+      UserEntity? currentUser;
+
+      // Check if user is already loaded in UserCubit
+      if (userCubit.state is UserLoaded) {
+        final userState = userCubit.state as UserLoaded;
+        currentUser = userState.user;
+        print(
+          '🟢 TeamDetailsPage: Found current user in UserCubit: ${currentUser.name} (${currentUser.id})',
+        );
+      } else {
+        // If user is not loaded, load it first
+        print('🟡 TeamDetailsPage: User not loaded, loading current user...');
+        await userCubit.loadCurrentUser();
+
+        // Wait a moment for the state to update, then check again
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        if (userCubit.state is UserLoaded) {
+          final userState = userCubit.state as UserLoaded;
+          currentUser = userState.user;
+          print(
+            '🟢 TeamDetailsPage: Loaded current user: ${currentUser.name} (${currentUser.id})',
+          );
+        } else {
+          print(
+            '🔴 TeamDetailsPage: Failed to load current user. State: ${userCubit.state}',
+          );
+        }
+      }
+
+      if (currentUser != null && token != null) {
+        print(
+          '🟢 TeamDetailsPage: Connecting to chat for team ${widget.team.id}',
+        );
+        final chatCubit = di.getIt<ChatCubit>();
+        chatCubit.connectToChat(widget.team.id, token, currentUser);
+      } else {
+        print(
+          '🔴 TeamDetailsPage: Cannot connect to chat - user: ${currentUser != null}, token: ${token != null}',
+        );
+      }
+
       setState(() {
         _accessToken = token;
       });
@@ -93,13 +139,9 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                   controller: _pageController,
                   onPageChanged: _onTabChanged,
                   children: [
-                    // Fixed: Pass both teamId and token parameters
-                    Provider<ChatCubit>(
-                      create: (context) => di.getIt<ChatCubit>(
-                        param1: widget.team.id,
-                        param2: _accessToken!,
-                      ),
-                      dispose: (_, cubit) => cubit.disconnectFromChat(),
+                    // FIXED: Use BlocProvider.value to share the same ChatCubit instance
+                    BlocProvider.value(
+                      value: di.getIt<ChatCubit>(),
                       child: TeamChatsTab(
                         teamId: widget.team.id,
                         accessToken: _accessToken!,
@@ -158,27 +200,41 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
 
   Widget _buildMemberAvatars(TeamEntity team) {
     // Generate colors based on team name for consistency
+    print(
+      '🟡 _buildMemberAvatars: team.members.length = ${team.members.length}',
+    );
+    print('🟡 _buildMemberAvatars: team.memberCount = ${team.memberCount}');
     final colors = _generateColorsFromTeamName(team.name);
 
-    return Row(
-      children: [
-        // Show actual member avatars if we have member data
-        // For now, show team name initials with consistent colors
-        for (int i = 0; i < team.memberCount && i < 4; i++)
-          Padding(
-            padding: EdgeInsets.only(
-              right: i < 3 ? 8 : 0,
-            ), // Only add margin between avatars, not after last one
-            child: _buildMemberAvatar(
-              team.name[i % team.name.length].toUpperCase(),
-              colors[i % colors.length],
-            ),
-          ),
-        if (team.memberCount > 4) ...[
-          const SizedBox(width: 8),
-          _buildExtraMembersCount(team.memberCount - 4),
+    return Expanded(
+      child: Row(
+        children: [
+          // Check if members list has data
+          if (team.members.isNotEmpty)
+            for (int i = 0; i < team.members.length && i < 4; i++)
+              Padding(
+                padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
+                child: _buildMemberAvatar(
+                  team.members[i].initials,
+                  colors[i % colors.length],
+                ),
+              ),
+          if (team.members.length > 4) ...[
+            const SizedBox(width: 8),
+            _buildExtraMembersCount(team.members.length - 4),
+          ],
+          // Fallback if no members data
+          if (team.members.isEmpty)
+            for (int i = 0; i < team.memberCount && i < 4; i++)
+              Padding(
+                padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
+                child: _buildMemberAvatar(
+                  team.name[i % team.name.length].toUpperCase(),
+                  colors[i % colors.length],
+                ),
+              ),
         ],
-      ],
+      ),
     );
   }
 

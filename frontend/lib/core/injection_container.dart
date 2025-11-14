@@ -1,4 +1,5 @@
 // core/injection_container.dart
+import 'dart:async'; // ADD THIS IMPORT
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -29,6 +30,8 @@ import '../../features/teams/domain/use_cases/join_team_usecase.dart';
 import '../../features/teams/presentation/blocs/teams/teams_cubit.dart';
 import '../../features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 import '../../features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
+import 'package:frontend/features/teams/domain/use_cases/get_team_by_id_usecase.dart';
+import 'package:frontend/features/teams/presentation/blocs/team_details/team_details_cubit.dart';
 
 // Chat
 import '../../features/chat/data/data_sources/chat_remote_data_source.dart';
@@ -48,7 +51,14 @@ import '../../features/user/domain/use_cases/update_profile_use_case.dart';
 import '../../features/user/domain/use_cases/logout_use_case.dart';
 import '../../features/user/presentation/cubits/user_cubit.dart';
 
+// Events
+import 'package:frontend/core/events/user_status_events.dart'; // ADD THIS
+
 final getIt = GetIt.instance;
+
+// NEW: Create a shared stream controller for user status events
+final StreamController<UserStatusEvent> _userStatusController =
+    StreamController<UserStatusEvent>.broadcast(); // FIXED
 
 Future<void> initDependencies() async {
   await dotenv.load(fileName: ".env");
@@ -147,8 +157,7 @@ Future<void> initDependencies() async {
     ),
   );
 
-  // ⚠️ CRITICAL FIX: Change from registerFactory to registerLazySingleton
-  // This ensures the same socket instance is used throughout the app
+  // Chat dependencies
   getIt.registerLazySingleton<ChatRemoteDataSource>(
     () => ChatRemoteDataSourceImpl(),
   );
@@ -168,12 +177,13 @@ Future<void> initDependencies() async {
     () => SendMessageUseCase(getIt<ChatRepository>()),
   );
 
-  // Changed to LazySingleton so the same cubit instance is reused
+  // UPDATED: ChatCubit with userStatusController
   getIt.registerLazySingleton<ChatCubit>(
     () => ChatCubit(
       getMessagesUseCase: getIt<GetMessagesUseCase>(),
       sendMessageUseCase: getIt<SendMessageUseCase>(),
       repository: getIt<ChatRepository>(),
+      userStatusController: _userStatusController,
     ),
   );
 
@@ -213,4 +223,21 @@ Future<void> initDependencies() async {
       logoutUseCase: getIt<LogoutUseCase>(),
     ),
   );
+
+  getIt.registerFactory(
+    () => GetTeamByIdUseCase(repository: getIt<TeamRepository>()),
+  );
+
+  // UPDATED: TeamDetailsCubit with userStatusController
+  getIt.registerFactory(
+    () => TeamDetailsCubit(
+      getTeamByIdUseCase: getIt<GetTeamByIdUseCase>(),
+      userStatusController: _userStatusController,
+    ),
+  );
+}
+
+// NEW: Cleanup function to close the stream controller
+Future<void> disposeDependencies() async {
+  await _userStatusController.close();
 }

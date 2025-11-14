@@ -186,4 +186,15 @@ class TeamRepositoryImpl implements TeamRepository {
       return Left(ServerFailure('Unexpected error: $e'));
     }
   }
+
+  // In your team_repository_impl.dart
+  @override
+  Future<Either<Failure, TeamEntity>> getTeamById(String teamId) async {
+    try {
+      final remoteTeam = await remoteDataSource.getTeamById(teamId);
+      return Right(remoteTeam);
+    } catch (e) {
+      return Left(ServerFailure());
+    }
+  }
 }

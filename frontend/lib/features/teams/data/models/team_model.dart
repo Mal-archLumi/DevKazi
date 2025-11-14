@@ -3,7 +3,6 @@ import '../../domain/entities/team_entity.dart';
 
 class TeamModel extends TeamEntity {
   const TeamModel({
-    // REMOVE: const
     required super.id,
     required super.name,
     super.description,
@@ -14,32 +13,30 @@ class TeamModel extends TeamEntity {
     super.ownerName,
     super.isMember,
     super.inviteCode,
+    required super.members, // ADD THIS
   });
 
   factory TeamModel.fromJson(Map<String, dynamic> json) {
-    return TeamModel(
-      id: json['_id'] ?? json['id'] ?? '',
-      name: json['name'] ?? '',
-      description: json['description'],
-      logoUrl: json['logoUrl'],
-      memberCount: _parseMemberCount(json), // CHANGED: Handle different formats
-      createdAt: _parseDateTime(json['createdAt']),
-      lastActivity: _parseDateTime(json['lastActivity'] ?? json['createdAt']),
-      ownerName: json['owner'] != null
-          ? (json['owner'] is String ? json['owner'] : json['owner']['name'])
-          : null,
-      isMember: json['isMember'] ?? false,
-      inviteCode: json['inviteCode'],
-    );
-  }
+    print('🟡 TeamModel.fromJson: Starting parsing');
+    print('🟡 TeamModel.fromJson: json keys: ${json.keys}');
+    print('🟡 TeamModel.fromJson: members data: ${json['members']}');
 
-  static int _parseMemberCount(Map<String, dynamic> json) {
-    // Try members array length first
-    if (json['members'] is List) {
-      return (json['members'] as List).length;
-    }
-    // Fallback to memberCount field
-    return json['memberCount'] ?? 1;
+    // Use TeamEntity.fromJson to parse members data
+    final teamEntity = TeamEntity.fromJson(json);
+
+    return TeamModel(
+      id: teamEntity.id,
+      name: teamEntity.name,
+      description: teamEntity.description,
+      logoUrl: teamEntity.logoUrl,
+      memberCount: teamEntity.memberCount,
+      createdAt: teamEntity.createdAt,
+      lastActivity: teamEntity.lastActivity,
+      ownerName: teamEntity.ownerName,
+      isMember: teamEntity.isMember,
+      inviteCode: teamEntity.inviteCode,
+      members: teamEntity.members, // ADD THIS
+    );
   }
 
   static DateTime _parseDateTime(dynamic date) {
@@ -66,7 +63,7 @@ class TeamModel extends TeamEntity {
       'lastActivity': lastActivity.toIso8601String(),
       'ownerName': ownerName,
       'isMember': isMember,
-      'inviteCode': inviteCode, // ADD
+      'inviteCode': inviteCode,
     };
   }
 }

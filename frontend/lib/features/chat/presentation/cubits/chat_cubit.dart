@@ -10,13 +10,29 @@ import 'package:frontend/features/chat/domain/use_cases/send_message_use_case.da
 import 'package:frontend/features/chat/domain/repositories/chat_repository.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
 import 'chat_state.dart';
+import 'package:frontend/core/events/user_status_events.dart'; // ADD THIS
+
+// REMOVE THIS DUPLICATE CLASS - it's now in the shared file
+// class UserStatusEvent {
+//   final String userId;
+//   final String teamId;
+//   final bool isOnline;
+//
+//   UserStatusEvent({
+//     required this.userId,
+//     required this.teamId,
+//     required this.isOnline,
+//   });
+// }
 
 class ChatCubit extends Cubit<ChatState> {
   final GetMessagesUseCase getMessagesUseCase;
   final SendMessageUseCase sendMessageUseCase;
   final ChatRepository repository;
+  final StreamController<UserStatusEvent> userStatusController;
   StreamSubscription? _messageSubscription;
   StreamSubscription? _connectionSubscription;
+  StreamSubscription? _userStatusSubscription;
   final Logger _logger = Logger();
 
   // Store current user info
@@ -27,6 +43,7 @@ class ChatCubit extends Cubit<ChatState> {
     required this.getMessagesUseCase,
     required this.sendMessageUseCase,
     required this.repository,
+    required this.userStatusController,
   }) : super(const ChatState());
 
   Future<void> connectToChat(
@@ -40,12 +57,21 @@ class ChatCubit extends Cubit<ChatState> {
     _logger.i('Current user: ${currentUser.name} (${currentUser.id})');
     _logger.i('Token length: ${token.length}');
 
+    // NEW: Immediately set current user as online
+    userStatusController.add(
+      UserStatusEvent(userId: currentUser.id, teamId: teamId, isOnline: true),
+    );
+
     emit(state.copyWith(status: ChatStatus.connecting));
 
     // Listen to connection events BEFORE connecting
     _connectionSubscription = repository.onConnected.listen(
       (_) {
         _logger.i('ChatCubit: Socket connected event received');
+
+        // Join team for online status
+        _joinTeamForOnlineStatus(teamId);
+
         // Connection confirmed, now load messages
         loadMessages(teamId);
         emit(
@@ -68,8 +94,9 @@ class ChatCubit extends Cubit<ChatState> {
       },
     );
 
-    // Start listening to messages
+    // Start listening to messages AND user status
     _listenToMessages();
+    _listenToUserStatus();
 
     // Connect to socket
     final result = await repository.connect(teamId, token);
@@ -85,6 +112,7 @@ class ChatCubit extends Cubit<ChatState> {
           ),
         );
         _connectionSubscription?.cancel();
+        _userStatusSubscription?.cancel();
       },
       (_) {
         _logger.i('ChatCubit: Connection call completed successfully');
@@ -93,6 +121,7 @@ class ChatCubit extends Cubit<ChatState> {
           _logger.i(
             'ChatCubit: Socket already connected, loading messages immediately',
           );
+          _joinTeamForOnlineStatus(teamId);
           loadMessages(teamId);
           emit(
             state.copyWith(
@@ -109,7 +138,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void _listenToMessages() {
-    _messageSubscription?.cancel(); // Cancel existing subscription
+    _messageSubscription?.cancel();
 
     _messageSubscription = repository.messageStream.listen(
       (message) {
@@ -167,8 +196,44 @@ class ChatCubit extends Cubit<ChatState> {
     );
   }
 
+  void _listenToUserStatus() {
+    _userStatusSubscription?.cancel();
+
+    _userStatusSubscription = repository.userStatusStream.listen(
+      (data) {
+        _logger.d(
+          'User status update: ${data['userId']} is ${data['isOnline'] ? 'online' : 'offline'}',
+        );
+
+        _handleUserStatusUpdate(data);
+      },
+      onError: (error) {
+        _logger.e('User status stream error: $error');
+      },
+    );
+  }
+
+  void _handleUserStatusUpdate(Map<String, dynamic> data) {
+    final userId = data['userId'];
+    final isOnline = data['isOnline'];
+    final teamId = data['teamId'];
+
+    _logger.i(
+      'User status: $userId is ${isOnline ? 'online' : 'offline'} in team $teamId',
+    );
+
+    // Emit event to TeamDetailsCubit
+    userStatusController.add(
+      UserStatusEvent(userId: userId, teamId: teamId, isOnline: isOnline),
+    );
+  }
+
+  void _joinTeamForOnlineStatus(String teamId) {
+    _logger.i('Joining team for online status: $teamId');
+    repository.emit('userOnline', {'teamId': teamId});
+  }
+
   MessageEntity _processIncomingMessage(MessageEntity message) {
-    // If this message is from current user, update sender name
     if (_currentUser != null && message.senderId == _currentUser!.id) {
       return message.copyWith(senderName: 'You');
     }
@@ -193,7 +258,6 @@ class ChatCubit extends Cubit<ChatState> {
       },
       (messages) {
         _logger.i('Loaded ${messages.length} messages');
-        // Process messages to show "You" for current user's messages
         final processedMessages = messages
             .map(_processIncomingMessage)
             .toList();
@@ -246,7 +310,6 @@ class ChatCubit extends Cubit<ChatState> {
 
     _logger.i('Preparing to send message to team $teamId: "${content.trim()}"');
 
-    // Optimistic update with real user data
     final tempMessage = MessageEntity(
       id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
       teamId: teamId,
@@ -265,7 +328,6 @@ class ChatCubit extends Cubit<ChatState> {
       result.fold(
         (failure) {
           _logger.e('Error sending message: ${_mapFailureToMessage(failure)}');
-          // Remove optimistic message on failure
           final failedMessages = List<MessageEntity>.from(state.messages)
             ..removeWhere((msg) => msg.id.startsWith('temp-'));
 
@@ -279,13 +341,11 @@ class ChatCubit extends Cubit<ChatState> {
         },
         (_) {
           _logger.i('Message sent successfully');
-          // Success - the real message will come through the stream
           emit(state.copyWith(status: ChatStatus.loaded));
         },
       );
     } catch (e) {
       _logger.e('Exception while sending message: $e');
-      // Remove optimistic message on exception
       final failedMessages = List<MessageEntity>.from(state.messages)
         ..removeWhere((msg) => msg.id.startsWith('temp-'));
 
@@ -306,8 +366,16 @@ class ChatCubit extends Cubit<ChatState> {
 
   Future<void> disconnectFromChat() async {
     _logger.i('Disconnecting from chat');
+
+    if (_currentUser != null) {
+      userStatusController.add(
+        UserStatusEvent(userId: _currentUser!.id, teamId: '', isOnline: false),
+      );
+    }
+
     _messageSubscription?.cancel();
     _connectionSubscription?.cancel();
+    _userStatusSubscription?.cancel();
     await repository.disconnect();
     _currentUser = null;
     _currentToken = null;
@@ -329,6 +397,7 @@ class ChatCubit extends Cubit<ChatState> {
     _logger.i('Closing ChatCubit');
     _messageSubscription?.cancel();
     _connectionSubscription?.cancel();
+    _userStatusSubscription?.cancel();
     disconnectFromChat();
     return super.close();
   }

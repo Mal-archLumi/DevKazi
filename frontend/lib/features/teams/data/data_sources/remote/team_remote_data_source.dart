@@ -13,12 +13,53 @@ abstract class TeamRemoteDataSource {
   Future<TeamEntity> createTeam(String name, String? description);
   Future<List<TeamEntity>> getAllTeams();
   Future<void> joinTeam(String teamId);
+  Future<TeamEntity> getTeamById(String teamId); // ADD THIS LINE
 }
 
 class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   final ApiClient client;
 
   TeamRemoteDataSourceImpl({required this.client});
+
+  @override
+  Future<TeamEntity> getTeamById(String teamId) async {
+    // ADD THIS METHOD
+    try {
+      log('🟡 TeamRemoteDataSource: Making API call to /teams/$teamId');
+
+      final response = await client.get<Map<String, dynamic>>(
+        '/teams/$teamId',
+        requiresAuth: true,
+      );
+
+      log(
+        '🟡 TeamRemoteDataSource: API Response - Status: ${response.statusCode}',
+      );
+
+      if (response.isSuccess && response.data != null) {
+        log('🟢 TeamRemoteDataSource: Team data fetched successfully');
+
+        final teamData = response.data!;
+        log('🟢 TEAM WITH MEMBERS DATA: $teamData');
+
+        final team = TeamModel.fromJson(teamData);
+        return team;
+      } else {
+        log(
+          '🔴 TeamRemoteDataSource: Failed to fetch team - Status: ${response.statusCode}',
+        );
+        throw ServerException(
+          response.message ?? 'Failed to fetch team: ${response.statusCode}',
+        );
+      }
+    } on ServerException {
+      rethrow;
+    } catch (e, stackTrace) {
+      log('🔴 TeamRemoteDataSource: Network error - $e');
+      log('🔴 Stack trace: $stackTrace');
+      throw ServerException('Network error: $e');
+    }
+  }
 
   @override
   Future<List<TeamEntity>> getUserTeams() async {

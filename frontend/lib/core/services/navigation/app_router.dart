@@ -48,7 +48,7 @@ class AppRouter {
         final team = settings.arguments as TeamEntity;
         return _buildRoute(
           BlocProvider(
-            create: (context) => TeamDetailsCubit(),
+            create: (context) => getIt<TeamDetailsCubit>(),
             child: TeamDetailsPage(team: team),
           ),
           settings,

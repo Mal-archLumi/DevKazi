@@ -11,12 +11,14 @@ import 'package:frontend/features/auth/domain/repositories/auth_repository.dart'
 abstract class ChatRemoteDataSource {
   Stream<MessageModel> get messageStream;
   Stream<void> get onConnected;
+  Stream<Map<String, dynamic>> get userStatusStream; // ADD THIS
   Future<void> connect(String teamId, String token);
   Future<void> disconnect();
   Future<void> sendMessage(String teamId, String content);
   Future<List<MessageModel>> getTeamMessages(String teamId);
   bool get isConnected;
   String? get currentTeamId;
+  void emit(String event, dynamic data); // ADD THIS
 }
 
 class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
@@ -25,6 +27,9 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       StreamController<MessageModel>.broadcast();
   final StreamController<void> _connectedStreamController =
       StreamController<void>.broadcast();
+  final StreamController<Map<String, dynamic>>
+  _userStatusStreamController = // ADD THIS
+      StreamController<Map<String, dynamic>>.broadcast();
 
   final String _baseUrl;
   String? _currentTeamId;
@@ -62,6 +67,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     _socket!.off('connect_error');
     _socket!.off('authentication_error');
     _socket!.off('message_sent');
+    _socket!.off('userStatus'); // ADD THIS
 
     _socket!.onConnect((_) {
       if (_isDisposed) return;
@@ -125,6 +131,19 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       }
     });
 
+    // ADD THIS - Listen for user status updates
+    _socket!.on('userStatus', (data) {
+      if (_isDisposed) return;
+
+      try {
+        print('👤 User status update: $data');
+        final statusData = Map<String, dynamic>.from(data);
+        _userStatusStreamController.add(statusData);
+      } catch (e) {
+        print('❌ User status parse error: $e');
+      }
+    });
+
     _socket!.on('error', (err) {
       if (_isDisposed) return;
       print('❌ SOCKET ERROR: $err');
@@ -179,10 +198,26 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   Stream<void> get onConnected => _connectedStreamController.stream;
 
   @override
+  Stream<Map<String, dynamic>> get userStatusStream =>
+      _userStatusStreamController.stream; // ADD THIS
+
+  @override
   bool get isConnected => _socket?.connected ?? false;
 
   @override
   String? get currentTeamId => _currentTeamId;
+
+  @override
+  void emit(String event, dynamic data) {
+    // ADD THIS
+    if (_isDisposed || _socket == null || !_socket!.connected) {
+      print('❌ Cannot emit $event - socket not connected');
+      return;
+    }
+
+    print('📤 Emitting $event: $data');
+    _socket!.emit(event, data);
+  }
 
   @override
   Future<void> connect(String teamId, String token) async {
@@ -393,6 +428,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     _messageCleanupTimer?.cancel();
     _messageStreamController.close();
     _connectedStreamController.close();
+    _userStatusStreamController.close(); // ADD THIS
     _socket?.dispose();
     _processedMessageIds.clear();
   }

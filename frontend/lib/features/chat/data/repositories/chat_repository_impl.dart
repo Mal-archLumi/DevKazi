@@ -28,6 +28,10 @@ class ChatRepositoryImpl implements ChatRepository {
   Stream<void> get onAuthenticated => remoteDataSource.onConnected;
 
   @override
+  Stream<Map<String, dynamic>> get userStatusStream => // ADD THIS
+      remoteDataSource.userStatusStream;
+
+  @override
   Future<Either<Failure, void>> connect(String teamId, String token) async {
     try {
       _logger.i('🔄 Connecting to socket for team: $teamId');
@@ -114,4 +118,10 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   bool get isConnected => remoteDataSource.isConnected;
+
+  @override
+  void emit(String event, dynamic data) {
+    // ADD THIS
+    remoteDataSource.emit(event, data);
+  }
 }

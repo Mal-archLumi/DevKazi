@@ -13,6 +13,9 @@ abstract class ChatRepository {
   /// Stream that emits when authentication is successful
   Stream<void> get onAuthenticated;
 
+  /// Stream of user online/offline status updates
+  Stream<Map<String, dynamic>> get userStatusStream; // ADD THIS
+
   /// Check if currently connected
   bool get isConnected;
 
@@ -27,4 +30,7 @@ abstract class ChatRepository {
 
   /// Get all messages for a team
   Future<Either<Failure, List<MessageEntity>>> getTeamMessages(String teamId);
+
+  /// Emit a custom event to the server
+  void emit(String event, dynamic data); // ADD THIS
 }

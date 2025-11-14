@@ -12,4 +12,5 @@ abstract class TeamRepository {
   );
   Future<Either<Failure, List<TeamEntity>>> getAllTeams();
   Future<Either<Failure, bool>> joinTeam(String teamId);
+  Future<Either<Failure, TeamEntity>> getTeamById(String teamId);
 }

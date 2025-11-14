@@ -42,6 +42,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   server: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
+  private readonly onlineUsers = new Map<string, Set<string>>(); // teamId -> userIds
 
   constructor(
     private readonly chatService: ChatService,
@@ -57,9 +58,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     server.use(async (socket: AuthenticatedSocket, next) => {
       try {
         this.logger.debug('🔍 WebSocket Middleware - Authenticating connection');
-        this.logger.debug('🔍 Query:', socket.handshake.query);
-        this.logger.debug('🔍 Auth:', socket.handshake.auth);
-        this.logger.debug('🔍 Headers:', socket.handshake.headers);
 
         // Extract token from multiple possible locations
         let token: string | undefined;
@@ -145,10 +143,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         client.join(teamId);
         this.logger.log(`✅ User ${user.userId} auto-joined team ${teamId}`);
         
+        // Track online status
+        if (!this.onlineUsers.has(teamId)) {
+          this.onlineUsers.set(teamId, new Set());
+        }
+        this.onlineUsers.get(teamId)!.add(user.userId);
+        
         // Notify others in team
-        client.to(teamId).emit('user_joined', {
+        client.to(teamId).emit('userStatus', {
           userId: user.userId,
           userName: user.name,
+          isOnline: true,
           teamId: teamId,
           timestamp: new Date().toISOString()
         });
@@ -167,12 +172,18 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const user = client.data.user;
     this.logger.log(`🔌 Client disconnected: ${client.id} | User: ${user?.userId || 'Unknown'}`);
     
-    // Notify all rooms the user was in
+    // Notify all teams user was in about offline status
     const rooms = Array.from(client.rooms).filter(room => room !== client.id);
     rooms.forEach(teamId => {
-      client.to(teamId).emit('user_left', {
+      // Remove from online tracking
+      if (this.onlineUsers.has(teamId) && user) {
+        this.onlineUsers.get(teamId)!.delete(user.userId);
+      }
+      
+      client.to(teamId).emit('userStatus', {
         userId: user?.userId,
         userName: user?.name,
+        isOnline: false,
         teamId: teamId,
         timestamp: new Date().toISOString()
       });
@@ -196,6 +207,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       client.join(teamId);
       this.logger.log(`✅ User ${user.userId} manually joined team ${teamId}`);
       
+      // Track online status
+      if (!this.onlineUsers.has(teamId)) {
+        this.onlineUsers.set(teamId, new Set());
+      }
+      this.onlineUsers.get(teamId)!.add(user.userId);
+      
       client.emit('joined_team', { 
         success: true, 
         teamId,
@@ -203,9 +220,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       });
 
       // Notify other users in the team
-      client.to(teamId).emit('user_joined', {
+      client.to(teamId).emit('userStatus', {
         userId: user.userId,
         userName: user.name,
+        isOnline: true,
         teamId: teamId,
         timestamp: new Date().toISOString()
       });
@@ -215,6 +233,40 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       client.emit('error', { 
         message: 'Failed to join team: ' + error.message 
       });
+    }
+  }
+
+  @SubscribeMessage('userOnline')
+  @UseGuards(WebSocketJwtAuthGuard)
+  async handleUserOnline(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() { teamId }: { teamId: string },
+  ) {
+    try {
+      const user = client.data.user!;
+      
+      // Join team room for online status
+      client.join(teamId);
+      
+      // Track online user
+      if (!this.onlineUsers.has(teamId)) {
+        this.onlineUsers.set(teamId, new Set());
+      }
+      this.onlineUsers.get(teamId)!.add(user.userId);
+      
+      this.logger.log(`🟢 User ${user.userId} is online in team ${teamId}`);
+      
+      // Notify all team members
+      client.to(teamId).emit('userStatus', {
+        userId: user.userId,
+        userName: user.name,
+        isOnline: true,
+        teamId: teamId,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error: any) {
+      this.logger.error(`❌ User online error: ${error.message}`);
     }
   }
 
@@ -296,6 +348,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       client.leave(teamId);
       this.logger.log(`🚪 User ${user.userId} left team ${teamId}`);
       
+      // Remove from online tracking
+      if (this.onlineUsers.has(teamId)) {
+        this.onlineUsers.get(teamId)!.delete(user.userId);
+      }
+      
       client.emit('left_team', { 
         success: true, 
         teamId,
@@ -303,9 +360,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       });
 
       // Notify other users in the team
-      client.to(teamId).emit('user_left', {
+      client.to(teamId).emit('userStatus', {
         userId: user.userId,
         userName: user.name,
+        isOnline: false,
         teamId: teamId,
         timestamp: new Date().toISOString()
       });
@@ -370,14 +428,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
   }
 
-  @SubscribeMessage('ping')
-  handlePing(@ConnectedSocket() client: AuthenticatedSocket) {
-    client.emit('pong', { 
-      timestamp: new Date().toISOString(),
-      serverTime: Date.now()
-    });
-  }
-
   @SubscribeMessage('get_online_users')
   @UseGuards(WebSocketJwtAuthGuard)
   async handleGetOnlineUsers(
@@ -390,16 +440,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         return;
       }
 
-      // Get all sockets in the team room
-      const sockets = await this.server.in(teamId).fetchSockets();
-      const onlineUsers = sockets
-        .map(socket => (socket as unknown as AuthenticatedSocket).data.user)
-        .filter(user => user != null)
-        .map(user => ({
-          userId: user!.userId,
-          name: user!.name,
-          email: user!.email
-        }));
+      // Get online users from our tracking
+      const onlineUserIds = this.onlineUsers.get(teamId) || new Set();
+      const onlineUsers = Array.from(onlineUserIds).map(userId => ({
+        userId: userId,
+        isOnline: true
+      }));
 
       client.emit('online_users', {
         teamId,
@@ -412,6 +458,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         message: 'Failed to get online users: ' + error.message 
       });
     }
+  }
+
+  @SubscribeMessage('ping')
+  handlePing(@ConnectedSocket() client: AuthenticatedSocket) {
+    client.emit('pong', { 
+      timestamp: new Date().toISOString(),
+      serverTime: Date.now()
+    });
   }
 
   // Health check endpoint

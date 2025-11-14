@@ -27,6 +27,7 @@ import '../../features/teams/domain/use_cases/search_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/create_team_usecase.dart';
 import '../../features/teams/domain/use_cases/get_all_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/join_team_usecase.dart';
+import '../../features/teams/domain/use_cases/search_browse_teams_usecase.dart'; // ADD THIS
 import '../../features/teams/presentation/blocs/teams/teams_cubit.dart';
 import '../../features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 import '../../features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
@@ -126,6 +127,11 @@ Future<void> initDependencies() async {
     () => SearchTeamsUseCase(getIt<TeamRepository>()),
   );
 
+  getIt.registerLazySingleton<SearchBrowseTeamsUseCase>(
+    // ADD THIS
+    () => SearchBrowseTeamsUseCase(getIt<TeamRepository>()),
+  );
+
   getIt.registerLazySingleton<CreateTeamUseCase>(
     () => CreateTeamUseCase(getIt<TeamRepository>()),
   );
@@ -154,6 +160,7 @@ Future<void> initDependencies() async {
       getAllTeams: getIt<GetAllTeamsUseCase>(),
       getUserTeams: getIt<GetUserTeamsUseCase>(),
       joinTeamUseCase: getIt<JoinTeamUseCase>(),
+      searchBrowseTeams: getIt<SearchBrowseTeamsUseCase>(), // ADD THIS
     ),
   );
 

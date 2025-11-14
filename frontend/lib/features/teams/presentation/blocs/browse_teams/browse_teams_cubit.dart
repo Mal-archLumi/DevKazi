@@ -6,6 +6,7 @@ import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_all_teams_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_user_teams_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/join_team_usecase.dart';
+import 'package:frontend/features/teams/domain/use_cases/search_browse_teams_usecase.dart';
 
 part 'browse_teams_state.dart';
 
@@ -13,11 +14,13 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
   final GetAllTeamsUseCase getAllTeams;
   final GetUserTeamsUseCase getUserTeams;
   final JoinTeamUseCase joinTeamUseCase;
+  final SearchBrowseTeamsUseCase searchBrowseTeams;
 
   BrowseTeamsCubit({
     required this.getAllTeams,
     required this.getUserTeams,
     required this.joinTeamUseCase,
+    required this.searchBrowseTeams,
   }) : super(BrowseTeamsState.initial());
 
   Future<void> loadAllTeams() async {
@@ -66,9 +69,6 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
                 debugPrint(
                   '🟢 Filtered ${allTeams.length} total teams to ${browseTeams.length} browse teams',
                 );
-                debugPrint(
-                  '🟢 User has ${userTeams.length} teams, showing ${browseTeams.length} other teams',
-                );
 
                 emit(
                   state.copyWith(
@@ -94,7 +94,62 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
     }
   }
 
-  // Rest of your cubit methods remain the same...
+  Future<void> searchTeams(String query) async {
+    if (query.isEmpty) {
+      // When search is cleared, show all browse teams
+      emit(state.copyWith(filteredTeams: state.teams, isSearching: false));
+      return;
+    }
+
+    // Show loading state for search
+    emit(state.copyWith(status: BrowseTeamsStatus.loading, isSearching: true));
+
+    try {
+      // Use the backend search endpoint for browse teams
+      final searchResult = await searchBrowseTeams(query);
+
+      searchResult.fold(
+        (failure) {
+          emit(
+            state.copyWith(
+              status: BrowseTeamsStatus.error,
+              errorMessage: _mapFailureToMessage(failure),
+              isSearching: false,
+            ),
+          );
+        },
+        (searchResults) {
+          // ADD NAME-ONLY FILTERING
+          final searchLower = query.toLowerCase();
+          final nameFilteredResults = searchResults.where((team) {
+            return team.name.toLowerCase().contains(searchLower);
+          }).toList();
+
+          debugPrint(
+            '🟢 Browse backend search found ${nameFilteredResults.length} teams (name-only) for: "$query"',
+          );
+
+          emit(
+            state.copyWith(
+              status: BrowseTeamsStatus.loaded,
+              filteredTeams: nameFilteredResults,
+              isSearching: true,
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint('🔴 Browse search error: $e');
+      emit(
+        state.copyWith(
+          status: BrowseTeamsStatus.error,
+          errorMessage: 'Search failed: $e',
+          isSearching: false,
+        ),
+      );
+    }
+  }
+
   Future<void> joinTeam(String teamId) async {
     final result = await joinTeamUseCase(teamId);
 
@@ -118,21 +173,6 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
         );
       },
     );
-  }
-
-  void searchTeams(String query) {
-    if (query.isEmpty) {
-      emit(state.copyWith(filteredTeams: state.teams, isSearching: false));
-      return;
-    }
-
-    final filtered = state.teams.where((team) {
-      return team.name.toLowerCase().contains(query.toLowerCase()) ||
-          (team.description?.toLowerCase().contains(query.toLowerCase()) ??
-              false);
-    }).toList();
-
-    emit(state.copyWith(filteredTeams: filtered, isSearching: true));
   }
 
   void refresh() {

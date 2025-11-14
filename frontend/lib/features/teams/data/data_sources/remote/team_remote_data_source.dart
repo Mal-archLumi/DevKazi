@@ -10,6 +10,7 @@ import '/../../core/network/api_client.dart';
 abstract class TeamRemoteDataSource {
   Future<List<TeamEntity>> getUserTeams();
   Future<List<TeamEntity>> searchTeams(String query);
+  Future<List<TeamEntity>> searchBrowseTeams(String query);
   Future<TeamEntity> createTeam(String name, String? description);
   Future<List<TeamEntity>> getAllTeams();
   Future<void> joinTeam(String teamId);
@@ -117,7 +118,7 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   Future<List<TeamEntity>> searchTeams(String query) async {
     try {
       log(
-        '🟡 TeamRemoteDataSource: Making API call to /teams/search/my-teams with query: $query',
+        '🟡 TeamRemoteDataSource: Making API call to /teams/search/my-teams with query: "$query"',
       );
 
       final response = await client.get<List<dynamic>>(
@@ -156,6 +157,66 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
       }
     } on ServerException catch (e) {
       log('🔴 TeamRemoteDataSource: ServerException rethrown - ${e.message}');
+      rethrow;
+    } catch (e, stackTrace) {
+      log('🔴 TeamRemoteDataSource: Network error - $e');
+      log('🔴 Stack trace: $stackTrace');
+      throw ServerException('Network error: $e');
+    }
+  }
+
+  @override
+  Future<List<TeamEntity>> searchBrowseTeams(String query) async {
+    try {
+      log(
+        '🟡 TeamRemoteDataSource: Making API call to /teams/search/browse with query: "$query"',
+      );
+
+      final response = await client.get<List<dynamic>>(
+        '/teams/search/browse',
+        queryParameters: {'q': query},
+        requiresAuth: true,
+      );
+
+      log(
+        '🟡 TeamRemoteDataSource: API Response - Status: ${response.statusCode}',
+      );
+      log('🟡 TeamRemoteDataSource: Response data: ${response.data}');
+
+      if (response.isSuccess && response.data != null) {
+        log(
+          '🟢 TeamRemoteDataSource: API call successful, parsing ${response.data!.length} teams',
+        );
+
+        final teams = response.data!
+            .map(
+              (teamJson) =>
+                  TeamModel.fromJson(teamJson as Map<String, dynamic>),
+            )
+            .toList();
+
+        // Log each team name for debugging
+        log('🟢 TeamRemoteDataSource: SEARCH RESULTS FOR "$query":');
+        for (var i = 0; i < teams.length; i++) {
+          final team = teams[i];
+          log(
+            '🟢 TeamRemoteDataSource: [$i] Team: "${team.name}" | Description: "${team.description ?? "No description"}"',
+          );
+        }
+
+        log(
+          '🟢 TeamRemoteDataSource: Successfully parsed ${teams.length} teams',
+        );
+        return teams;
+      } else {
+        log(
+          '🔴 TeamRemoteDataSource: API call failed - Status: ${response.statusCode}, Message: ${response.message}',
+        );
+        throw ServerException(
+          response.message ?? 'Failed to search teams: ${response.statusCode}',
+        );
+      }
+    } on ServerException {
       rethrow;
     } catch (e, stackTrace) {
       log('🔴 TeamRemoteDataSource: Network error - $e');

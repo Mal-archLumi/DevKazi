@@ -146,6 +146,79 @@ class TeamRepositoryImpl implements TeamRepository {
   }
 
   @override
+  Future<Either<Failure, List<TeamEntity>>> searchBrowseTeams(
+    String query,
+  ) async {
+    try {
+      log(
+        '🟡 TeamRepositoryImpl.searchBrowseTeams: Starting search with query: "$query"',
+      );
+      log(
+        '🟡 TeamRepositoryImpl.searchBrowseTeams: Checking network connection...',
+      );
+
+      if (await networkInfo.isConnected) {
+        log(
+          '🟢 TeamRepositoryImpl.searchBrowseTeams: Network connected, calling remote data source...',
+        );
+
+        final authRepository = getIt<AuthRepository>();
+        final token = await authRepository.getAccessToken();
+        log(
+          '🟡 TeamRepositoryImpl.searchBrowseTeams: Token available: ${token != null}',
+        );
+
+        final teams = await remoteDataSource.searchBrowseTeams(query);
+
+        log(
+          '🟢 TeamRepositoryImpl.searchBrowseTeams: Search completed for query: "$query"',
+        );
+        log(
+          '🟢 TeamRepositoryImpl.searchBrowseTeams: Found ${teams.length} teams',
+        );
+
+        // Log detailed team information for debugging
+        if (teams.isEmpty) {
+          log(
+            '🟡 TeamRepositoryImpl.searchBrowseTeams: No teams found for query: "$query"',
+          );
+        } else {
+          log(
+            '🟢 TeamRepositoryImpl.searchBrowseTeams: Teams found for query "$query":',
+          );
+          for (var i = 0; i < teams.length; i++) {
+            final team = teams[i];
+            log(
+              '🟢 TeamRepositoryImpl.searchBrowseTeams: [$i] ${team.name} (ID: ${team.id}) - Members: ${team.memberCount}',
+            );
+            if (team.description != null) {
+              log(
+                '🟢 TeamRepositoryImpl.searchBrowseTeams:     Description: ${team.description}',
+              );
+            }
+          }
+        }
+
+        return Right(teams);
+      } else {
+        log(
+          '🔴 TeamRepositoryImpl.searchBrowseTeams: No internet connection for search',
+        );
+        return Left(NetworkFailure('No internet connection'));
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl.searchBrowseTeams: ServerException - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e, stackTrace) {
+      log('🔴 TeamRepositoryImpl.searchBrowseTeams: Unexpected error - $e');
+      log('🔴 TeamRepositoryImpl.searchBrowseTeams: Stack trace: $stackTrace');
+      return Left(ServerFailure('Unexpected error during search: $e'));
+    }
+  }
+
+  @override
   Future<Either<Failure, TeamEntity>> createTeam(
     String name,
     String? description,

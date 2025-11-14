@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:frontend/core/injection_container.dart';
 import 'package:frontend/core/widgets/empty_state.dart';
 import 'package:frontend/core/widgets/error_state.dart';
 import 'package:frontend/core/widgets/loading_shimmer.dart';
@@ -24,6 +23,11 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+
+    // Load teams when the page initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BrowseTeamsCubit>().loadAllTeams();
+    });
   }
 
   @override
@@ -46,83 +50,78 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => getIt<BrowseTeamsCubit>()..loadAllTeams(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Discover Teams',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          elevation: 0,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Discover Teams',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
-        body: BlocBuilder<BrowseTeamsCubit, BrowseTeamsState>(
-          builder: (context, state) {
-            return RefreshIndicator(
-              onRefresh: () => context.read<BrowseTeamsCubit>().loadAllTeams(),
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  // Header (always shown)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Create Team button
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: widget.onCreateTeamPressed,
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
-                                foregroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 0,
+      ),
+      body: BlocBuilder<BrowseTeamsCubit, BrowseTeamsState>(
+        builder: (context, state) {
+          return RefreshIndicator(
+            onRefresh: () => context.read<BrowseTeamsCubit>().loadAllTeams(),
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                // Header (always shown)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Create Team button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: widget.onCreateTeamPressed,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Text(
-                                'Create Team',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onPrimary,
+                            ),
+                            child: const Text(
+                              'Create Team',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 24),
-                          // Title
-                          const Text(
-                            'Explore Teams',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Title
+                        const Text(
+                          'Explore Teams',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(height: 16),
-                          // Search bar
-                          _buildSearchBar(),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Search bar
+                        _buildSearchBar(),
+                      ],
                     ),
                   ),
-                  // Dynamic content based on state
-                  _buildContent(context, state),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+                // Dynamic content based on state
+                _buildContent(context, state),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

@@ -18,6 +18,7 @@ import '../../../../core/widgets/loading_shimmer.dart';
 import 'package:frontend/core/constants/route_constants.dart';
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
+import 'package:frontend/features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart'; // ADD THIS
 
 class TeamsListPage extends StatefulWidget {
   const TeamsListPage({super.key});
@@ -83,8 +84,14 @@ class _TeamsListPageState extends State<TeamsListPage> {
           },
           children: [
             TeamsListBody(key: _teamsListKey),
-            BrowseTeamsPage(onCreateTeamPressed: _navigateToCreateTeam),
-            const ProfilePage(), // Now UserCubit is available at page level
+            BlocProvider(
+              // ← ADD BlocProvider HERE
+              create: (context) => getIt<BrowseTeamsCubit>(),
+              child: BrowseTeamsPage(
+                onCreateTeamPressed: _navigateToCreateTeam,
+              ),
+            ),
+            const ProfilePage(),
           ],
         ),
         // Add Floating Action Button - only show on My Teams tab

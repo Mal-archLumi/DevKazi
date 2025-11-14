@@ -16,7 +16,7 @@ class TeamsCubit extends Cubit<TeamsState> {
   }) : super(const TeamsState());
 
   Future<void> loadUserTeams() async {
-    emit(state.copyWith(status: TeamsStatus.loading, isSearching: false));
+    emit(state.copyWith(status: TeamsStatus.loading, searchQuery: ''));
 
     final result = await getUserTeamsUseCase();
 
@@ -25,7 +25,6 @@ class TeamsCubit extends Cubit<TeamsState> {
         state.copyWith(
           status: TeamsStatus.error,
           errorMessage: _mapFailureToMessage(failure),
-          isSearching: false,
         ),
       ),
       (teams) => emit(
@@ -33,37 +32,43 @@ class TeamsCubit extends Cubit<TeamsState> {
           status: TeamsStatus.loaded,
           teams: teams,
           filteredTeams: teams,
-          isSearching: false,
         ),
       ),
     );
   }
 
   Future<void> searchTeams(String query) async {
+    print('🟡 TeamsCubit.searchTeams: Called with query: "$query"');
+
     if (query.isEmpty) {
-      emit(
-        state.copyWith(
-          filteredTeams: state.teams,
-          isSearching: false,
-          searchQuery: '',
-        ),
-      );
+      print('🟢 TeamsCubit.searchTeams: Query empty, showing all teams');
+      emit(state.copyWith(filteredTeams: state.teams, searchQuery: ''));
       return;
     }
 
-    emit(state.copyWith(isSearching: true, searchQuery: query));
+    print('🟡 TeamsCubit.searchTeams: Searching for: "$query"');
+    emit(state.copyWith(searchQuery: query, status: TeamsStatus.loading));
 
     final result = await searchTeamsUseCase(query);
 
     result.fold(
-      (failure) => emit(
-        state.copyWith(
-          status: TeamsStatus.error,
-          errorMessage: _mapFailureToMessage(failure),
-          isSearching: false,
-        ),
-      ),
-      (teams) => emit(state.copyWith(filteredTeams: teams, isSearching: true)),
+      (failure) {
+        print(
+          '🔴 TeamsCubit.searchTeams: Search failed - ${_mapFailureToMessage(failure)}',
+        );
+        emit(
+          state.copyWith(
+            status: TeamsStatus.error,
+            errorMessage: _mapFailureToMessage(failure),
+          ),
+        );
+      },
+      (teams) {
+        print(
+          '🟢 TeamsCubit.searchTeams: Search successful, found ${teams.length} teams',
+        );
+        emit(state.copyWith(status: TeamsStatus.loaded, filteredTeams: teams));
+      },
     );
   }
 

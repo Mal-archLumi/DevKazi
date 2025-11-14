@@ -28,7 +28,6 @@ class TeamsState extends Equatable {
     List<TeamEntity>? filteredTeams,
     String? searchQuery,
     String? errorMessage,
-    required bool isSearching,
   }) {
     return TeamsState(
       status: status ?? this.status,

@@ -13,7 +13,7 @@ abstract class TeamRemoteDataSource {
   Future<TeamEntity> createTeam(String name, String? description);
   Future<List<TeamEntity>> getAllTeams();
   Future<void> joinTeam(String teamId);
-  Future<TeamEntity> getTeamById(String teamId); // ADD THIS LINE
+  Future<TeamEntity> getTeamById(String teamId);
 }
 
 class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
@@ -23,7 +23,6 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
 
   @override
   Future<TeamEntity> getTeamById(String teamId) async {
-    // ADD THIS METHOD
     try {
       log('🟡 TeamRemoteDataSource: Making API call to /teams/$teamId');
 
@@ -118,11 +117,11 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   Future<List<TeamEntity>> searchTeams(String query) async {
     try {
       log(
-        '🟡 TeamRemoteDataSource: Making API call to /teams/search with query: $query',
+        '🟡 TeamRemoteDataSource: Making API call to /teams/search/my-teams with query: $query',
       );
 
       final response = await client.get<List<dynamic>>(
-        '/teams/search',
+        '/teams/search/my-teams', // FIXED ENDPOINT
         queryParameters: {'q': query},
         requiresAuth: true,
       );

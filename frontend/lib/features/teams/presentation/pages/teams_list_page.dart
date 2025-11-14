@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -259,7 +260,6 @@ class _TeamsListPageState extends State<TeamsListPage> {
   }
 }
 
-// TeamsListBody class remains exactly the same as your current implementation
 class TeamsListBody extends StatefulWidget {
   const TeamsListBody({super.key});
 
@@ -270,6 +270,7 @@ class TeamsListBody extends StatefulWidget {
 class _TeamsListBodyState extends State<TeamsListBody> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -287,16 +288,28 @@ class _TeamsListBodyState extends State<TeamsListBody> {
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    final query = _searchController.text;
-    context.read<TeamsCubit>().searchTeams(query);
+    _searchDebounce?.cancel();
+
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      final query = _searchController.text.trim();
+      print('🟡 TeamsListBody: Executing search with query: "$query"');
+
+      if (query.isEmpty) {
+        print('🟡 TeamsListBody: Query is empty, showing all teams');
+      }
+
+      context.read<TeamsCubit>().searchTeams(query);
+    });
   }
 
   void _clearSearch() {
     _searchController.clear();
+    _searchDebounce?.cancel();
     FocusScope.of(context).unfocus();
   }
 

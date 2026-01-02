@@ -447,7 +447,6 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   // Added method to check if user is logged in
-  @override
   Future<bool> isLoggedIn() async {
     try {
       final accessToken = await _secureStorage.read(key: _accessTokenKey);

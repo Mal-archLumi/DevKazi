@@ -71,6 +71,9 @@ class _TeamMembersTabState extends State<TeamMembersTab> {
   }
 
   Widget _buildMemberCard(TeamMember member) {
+    // Safely handle nullable isOnline
+    final isOnline = member.isOnline ?? false;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -104,7 +107,7 @@ class _TeamMembersTabState extends State<TeamMembersTab> {
           ),
           const SizedBox(width: 12),
 
-          // Member Info - FIXED: Use Expanded to prevent overflow
+          // Member Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,16 +143,16 @@ class _TeamMembersTabState extends State<TeamMembersTab> {
             ),
           ),
 
-          // Online Status & Join Date - FIXED: Use Column with mainAxisSize.min
+          // Online Status & Join Date
           Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Online Status
+              // Online Status - USE LOCAL VARIABLE
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: member.isOnline
+                  color: isOnline
                       ? Colors.green.withOpacity(0.1)
                       : Colors.grey.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -161,16 +164,16 @@ class _TeamMembersTabState extends State<TeamMembersTab> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: member.isOnline ? Colors.green : Colors.grey,
+                        color: isOnline ? Colors.green : Colors.grey,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      member.isOnline ? 'Online' : 'Offline',
+                      isOnline ? 'Online' : 'Offline',
                       style: TextStyle(
                         fontSize: 12,
-                        color: member.isOnline ? Colors.green : Colors.grey,
+                        color: isOnline ? Colors.green : Colors.grey,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -179,7 +182,7 @@ class _TeamMembersTabState extends State<TeamMembersTab> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Joined ${_formatJoinDate(member.joinedAt)}',
+                'Member',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(
                     context,
@@ -233,22 +236,5 @@ class _TeamMembersTabState extends State<TeamMembersTab> {
     ];
     final index = name.hashCode % colors.length;
     return colors[index];
-  }
-
-  String _formatJoinDate(DateTime joinDate) {
-    final now = DateTime.now();
-    final difference = now.difference(joinDate);
-
-    if (difference.inDays < 1) {
-      return 'today';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else if (difference.inDays < 30) {
-      final weeks = (difference.inDays / 7).floor();
-      return '$weeks week${weeks > 1 ? 's' : ''} ago';
-    } else {
-      final months = (difference.inDays / 30).floor();
-      return '$months month${months > 1 ? 's' : ''} ago';
-    }
   }
 }

@@ -1,5 +1,9 @@
-// core/injection_container.dart
-import 'dart:async'; // ADD THIS IMPORT
+// core/injection_container.dart - Complete version with all fixes
+import 'dart:async';
+import 'package:frontend/features/chat/domain/use_cases/delete_messages_use_case.dart';
+import 'package:frontend/features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
+import 'package:frontend/features/teams/presentation/blocs/create_team/create_team_cubit.dart';
+import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -27,12 +31,23 @@ import '../../features/teams/domain/use_cases/search_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/create_team_usecase.dart';
 import '../../features/teams/domain/use_cases/get_all_teams_usecase.dart';
 import '../../features/teams/domain/use_cases/join_team_usecase.dart';
-import '../../features/teams/domain/use_cases/search_browse_teams_usecase.dart'; // ADD THIS
-import '../../features/teams/presentation/blocs/teams/teams_cubit.dart';
-import '../../features/teams/presentation/blocs/create_team/create_team_cubit.dart';
-import '../../features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
+import '../../features/teams/domain/use_cases/search_browse_teams_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_team_by_id_usecase.dart';
 import 'package:frontend/features/teams/presentation/blocs/team_details/team_details_cubit.dart';
+import '../../features/teams/domain/use_cases/leave_team_usecase.dart';
+import 'package:frontend/features/teams/domain/use_cases/get_team_join_requests_usecase.dart';
+import 'package:frontend/features/teams/domain/use_cases/handle_join_request_usecase.dart';
+import 'package:frontend/features/teams/presentation/cubits/join_requests_cubit.dart';
+
+// Projects
+import '../../features/projects/data/data_sources/project_remote_data_source.dart';
+import '../../features/projects/data/repositories/project_repository_impl.dart';
+import '../../features/projects/domain/repositories/project_repository.dart';
+import '../../features/projects/domain/use_cases/get_projects_usecase.dart';
+import '../../features/projects/domain/use_cases/create_project_usecase.dart';
+import '../../features/projects/domain/use_cases/pin_link_usecase.dart';
+import '../../features/projects/domain/use_cases/add_idea_usecase.dart';
+import '../../features/projects/presentation/cubits/projects_cubit.dart';
 
 // Chat
 import '../../features/chat/data/data_sources/chat_remote_data_source.dart';
@@ -53,13 +68,13 @@ import '../../features/user/domain/use_cases/logout_use_case.dart';
 import '../../features/user/presentation/cubits/user_cubit.dart';
 
 // Events
-import 'package:frontend/core/events/user_status_events.dart'; // ADD THIS
+import 'package:frontend/core/events/user_status_events.dart';
 
 final getIt = GetIt.instance;
 
-// NEW: Create a shared stream controller for user status events
+// Create a shared stream controller for user status events
 final StreamController<UserStatusEvent> _userStatusController =
-    StreamController<UserStatusEvent>.broadcast(); // FIXED
+    StreamController<UserStatusEvent>.broadcast();
 
 Future<void> initDependencies() async {
   await dotenv.load(fileName: ".env");
@@ -128,7 +143,6 @@ Future<void> initDependencies() async {
   );
 
   getIt.registerLazySingleton<SearchBrowseTeamsUseCase>(
-    // ADD THIS
     () => SearchBrowseTeamsUseCase(getIt<TeamRepository>()),
   );
 
@@ -160,8 +174,40 @@ Future<void> initDependencies() async {
       getAllTeams: getIt<GetAllTeamsUseCase>(),
       getUserTeams: getIt<GetUserTeamsUseCase>(),
       joinTeamUseCase: getIt<JoinTeamUseCase>(),
-      searchBrowseTeams: getIt<SearchBrowseTeamsUseCase>(), // ADD THIS
+      searchBrowseTeams: getIt<SearchBrowseTeamsUseCase>(),
     ),
+  );
+
+  // Project dependencies
+  getIt.registerLazySingleton<ProjectRemoteDataSource>(
+    () => ProjectRemoteDataSourceImpl(client: getIt<ApiClient>()),
+  );
+
+  getIt.registerLazySingleton<ProjectRepository>(
+    () => ProjectRepositoryImpl(
+      remoteDataSource: getIt<ProjectRemoteDataSource>(),
+      networkInfo: getIt<NetworkInfo>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetProjectsUseCase>(
+    () => GetProjectsUseCase(getIt<ProjectRepository>()),
+  );
+
+  getIt.registerLazySingleton<CreateProjectUseCase>(
+    () => CreateProjectUseCase(getIt<ProjectRepository>()),
+  );
+
+  getIt.registerLazySingleton<PinLinkUseCase>(
+    () => PinLinkUseCase(getIt<ProjectRepository>()),
+  );
+
+  getIt.registerLazySingleton<AddIdeaUseCase>(
+    () => AddIdeaUseCase(getIt<ProjectRepository>()),
+  );
+
+  getIt.registerFactory<ProjectsCubit>(
+    () => ProjectsCubit(getIt<ProjectRepository>()),
   );
 
   // Chat dependencies
@@ -180,15 +226,22 @@ Future<void> initDependencies() async {
     () => GetMessagesUseCase(getIt<ChatRepository>()),
   );
 
+  // FIXED: SendMessageUseCase with correct constructor
   getIt.registerLazySingleton<SendMessageUseCase>(
-    () => SendMessageUseCase(getIt<ChatRepository>()),
+    () => SendMessageUseCase(repository: getIt<ChatRepository>()),
   );
 
-  // UPDATED: ChatCubit with userStatusController
+  // ADD THIS: DeleteMessagesUseCase registration
+  getIt.registerLazySingleton<DeleteMessagesUseCase>(
+    () => DeleteMessagesUseCase(repository: getIt<ChatRepository>()),
+  );
+
+  // UPDATED: ChatCubit with all required dependencies
   getIt.registerLazySingleton<ChatCubit>(
     () => ChatCubit(
       getMessagesUseCase: getIt<GetMessagesUseCase>(),
       sendMessageUseCase: getIt<SendMessageUseCase>(),
+      deleteMessagesUseCase: getIt<DeleteMessagesUseCase>(),
       repository: getIt<ChatRepository>(),
       userStatusController: _userStatusController,
     ),
@@ -235,16 +288,37 @@ Future<void> initDependencies() async {
     () => GetTeamByIdUseCase(repository: getIt<TeamRepository>()),
   );
 
+  getIt.registerLazySingleton<LeaveTeamUseCase>(
+    () => LeaveTeamUseCase(getIt<TeamRepository>()),
+  );
+
   // UPDATED: TeamDetailsCubit with userStatusController
   getIt.registerFactory(
     () => TeamDetailsCubit(
       getTeamByIdUseCase: getIt<GetTeamByIdUseCase>(),
+      leaveTeamUseCase: getIt<LeaveTeamUseCase>(),
       userStatusController: _userStatusController,
+    ),
+  );
+
+  // Join Requests use cases
+  getIt.registerLazySingleton(
+    () => GetTeamJoinRequestsUseCase(getIt<TeamRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => HandleJoinRequestUseCase(getIt<TeamRepository>()),
+  );
+
+  // Register JoinRequestsCubit
+  getIt.registerFactory(
+    () => JoinRequestsCubit(
+      getTeamJoinRequests: getIt<GetTeamJoinRequestsUseCase>(),
+      handleJoinRequest: getIt<HandleJoinRequestUseCase>(),
     ),
   );
 }
 
-// NEW: Cleanup function to close the stream controller
+// Cleanup function to close the stream controller
 Future<void> disposeDependencies() async {
   await _userStatusController.close();
 }

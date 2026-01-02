@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'dart:math' hide log;
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:frontend/features/teams/data/models/join_request_model.dart';
 
 class ApiResponse<T> {
   final T? data;
@@ -11,6 +12,8 @@ class ApiResponse<T> {
   ApiResponse({this.data, required this.statusCode, this.message});
 
   bool get isSuccess => statusCode >= 200 && statusCode < 300;
+
+  map(JoinRequestModel Function(dynamic json) param0) {}
 }
 
 class ApiClient {

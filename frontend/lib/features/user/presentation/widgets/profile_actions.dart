@@ -12,30 +12,48 @@ class ProfileActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
           Expanded(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              label: const Text('Edit Profile'),
+            child: FilledButton.icon(
               onPressed: onEditProfile,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: const Text('Edit Profile'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                elevation: 0,
               ),
             ),
           ),
           const SizedBox(width: 12),
-          IconButton.filledTonal(
-            onPressed: onToggleTheme,
-            icon: const Icon(Icons.dark_mode_outlined),
-            style: IconButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+              ),
+            ),
+            child: IconButton(
+              onPressed: onToggleTheme,
+              icon: Icon(
+                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              tooltip: 'Toggle Theme',
+              style: IconButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ),

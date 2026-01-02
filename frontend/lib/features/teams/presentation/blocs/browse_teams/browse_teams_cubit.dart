@@ -1,7 +1,6 @@
 // features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:frontend/core/errors/failures.dart';
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_all_teams_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_user_teams_usecase.dart';
@@ -28,165 +27,165 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
 
     emit(state.copyWith(status: BrowseTeamsStatus.loading));
 
-    try {
-      // Get user's teams first
-      final userTeamsResult = await getUserTeams();
+    final allTeamsResult = await getAllTeams();
 
-      userTeamsResult.fold(
-        (failure) {
-          if (!isClosed) {
-            emit(
-              state.copyWith(
-                status: BrowseTeamsStatus.error,
-                errorMessage: 'Failed to load user teams',
-              ),
-            );
-          }
-        },
-        (userTeams) async {
-          // Now get ALL teams
-          final allTeamsResult = await getAllTeams();
+    if (isClosed) return;
 
-          allTeamsResult.fold(
-            (failure) {
-              if (!isClosed) {
-                emit(
-                  state.copyWith(
-                    status: BrowseTeamsStatus.error,
-                    errorMessage: _mapFailureToMessage(failure),
-                  ),
-                );
-              }
-            },
-            (allTeams) {
-              if (!isClosed) {
-                // Filter out teams that user is already a member of
-                final userTeamIds = userTeams.map((team) => team.id).toSet();
-                final browseTeams = allTeams
-                    .where((team) => !userTeamIds.contains(team.id))
-                    .toList();
+    final userTeamsResult = await getUserTeams();
 
-                debugPrint(
-                  '🟢 Filtered ${allTeams.length} total teams to ${browseTeams.length} browse teams',
-                );
+    if (isClosed) return;
 
-                emit(
-                  state.copyWith(
-                    status: BrowseTeamsStatus.loaded,
-                    teams: browseTeams,
-                    filteredTeams: browseTeams,
-                  ),
-                );
-              }
-            },
-          );
-        },
-      );
-    } catch (e) {
-      if (!isClosed) {
-        emit(
-          state.copyWith(
-            status: BrowseTeamsStatus.error,
-            errorMessage: 'Unexpected error: $e',
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> searchTeams(String query) async {
-    if (query.isEmpty) {
-      // When search is cleared, show all browse teams
-      emit(state.copyWith(filteredTeams: state.teams, isSearching: false));
-      return;
-    }
-
-    // Show loading state for search
-    emit(state.copyWith(status: BrowseTeamsStatus.loading, isSearching: true));
-
-    try {
-      // Use the backend search endpoint for browse teams
-      final searchResult = await searchBrowseTeams(query);
-
-      searchResult.fold(
-        (failure) {
+    if (allTeamsResult.isLeft()) {
+      allTeamsResult.fold((failure) {
+        if (!isClosed) {
           emit(
             state.copyWith(
               status: BrowseTeamsStatus.error,
-              errorMessage: _mapFailureToMessage(failure),
-              isSearching: false,
+              errorMessage: failure.message,
             ),
           );
-        },
-        (searchResults) {
-          // ADD NAME-ONLY FILTERING
-          final searchLower = query.toLowerCase();
-          final nameFilteredResults = searchResults.where((team) {
-            return team.name.toLowerCase().contains(searchLower);
-          }).toList();
+        }
+      }, (_) {});
+      return;
+    }
 
-          debugPrint(
-            '🟢 Browse backend search found ${nameFilteredResults.length} teams (name-only) for: "$query"',
-          );
+    final List<TeamEntity> allTeams = allTeamsResult.fold(
+      (failure) => [],
+      (teams) => teams,
+    );
 
-          emit(
-            state.copyWith(
-              status: BrowseTeamsStatus.loaded,
-              filteredTeams: nameFilteredResults,
-              isSearching: true,
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      debugPrint('🔴 Browse search error: $e');
+    final Set<String> userTeamIds = userTeamsResult.fold((failure) {
+      debugPrint('Failed to get user teams: ${failure.message}');
+      return <String>{};
+    }, (userTeams) => userTeams.map((team) => team.id).toSet());
+
+    debugPrint('🟡 BrowseTeamsCubit: All teams count: ${allTeams.length}');
+    debugPrint('🟡 BrowseTeamsCubit: User team IDs: $userTeamIds');
+
+    final List<TeamEntity> browsableTeams = allTeams
+        .where((team) => !userTeamIds.contains(team.id))
+        .toList();
+
+    debugPrint(
+      '🟢 BrowseTeamsCubit: Browsable teams count: ${browsableTeams.length}',
+    );
+
+    if (!isClosed) {
       emit(
         state.copyWith(
-          status: BrowseTeamsStatus.error,
-          errorMessage: 'Search failed: $e',
-          isSearching: false,
+          status: BrowseTeamsStatus.loaded,
+          teams: browsableTeams,
+          allTeams: allTeams,
+          userTeamIds: userTeamIds,
         ),
       );
     }
   }
 
-  Future<void> joinTeam(String teamId) async {
-    final result = await joinTeamUseCase(teamId);
+  Future<void> searchTeams(String query) async {
+    if (isClosed) return;
+
+    if (query.isEmpty) {
+      final browsableTeams = state.allTeams
+          .where((team) => !state.userTeamIds.contains(team.id))
+          .toList();
+
+      emit(
+        state.copyWith(
+          isSearching: false,
+          filteredTeams: [],
+          searchQuery: '',
+          teams: browsableTeams,
+        ),
+      );
+      return;
+    }
+
+    emit(state.copyWith(isSearching: true, searchQuery: query));
+
+    final result = await searchBrowseTeams(query);
+
+    if (isClosed) return;
 
     result.fold(
-      (failure) =>
-          emit(state.copyWith(errorMessage: _mapFailureToMessage(failure))),
-      (success) {
-        // Remove the joined team from the list
-        final updatedTeams = state.teams
-            .where((team) => team.id != teamId)
-            .toList();
-        final updatedFilteredTeams = state.filteredTeams
-            .where((team) => team.id != teamId)
-            .toList();
+      (failure) {
+        if (!isClosed) {
+          emit(
+            state.copyWith(
+              status: BrowseTeamsStatus.error,
+              errorMessage: failure.message,
+            ),
+          );
+        }
+      },
+      (teams) {
+        if (!isClosed) {
+          final filteredSearchResults = teams
+              .where((team) => !state.userTeamIds.contains(team.id))
+              .toList();
 
-        emit(
-          state.copyWith(
-            teams: updatedTeams,
-            filteredTeams: updatedFilteredTeams,
-          ),
-        );
+          emit(state.copyWith(filteredTeams: filteredSearchResults));
+        }
       },
     );
   }
 
-  void refresh() {
-    loadAllTeams();
+  Future<void> joinTeam(String teamId) async {
+    if (isClosed) return;
+
+    emit(state.copyWith(joiningTeamId: teamId));
+
+    final result = await joinTeamUseCase(teamId);
+
+    if (isClosed) return;
+
+    result.fold(
+      (failure) {
+        if (!isClosed) {
+          // Check if it's a "pending request already exists" error
+          final isPendingError =
+              failure.message?.toLowerCase().contains('pending') == true ||
+              failure.message?.toLowerCase().contains('already') == true;
+
+          if (isPendingError) {
+            // User already has a pending request - add to pending list
+            final newPendingIds = Set<String>.from(state.pendingRequestTeamIds)
+              ..add(teamId);
+
+            emit(
+              state.copyWith(
+                joiningTeamId: null,
+                pendingRequestTeamIds: newPendingIds,
+                errorMessage: null, // Don't show error for this case
+              ),
+            );
+          } else {
+            emit(
+              state.copyWith(
+                joiningTeamId: null,
+                errorMessage: failure.message,
+              ),
+            );
+          }
+        }
+      },
+      (success) {
+        if (!isClosed) {
+          final newPendingIds = Set<String>.from(state.pendingRequestTeamIds)
+            ..add(teamId);
+
+          emit(
+            state.copyWith(
+              joiningTeamId: null,
+              pendingRequestTeamIds: newPendingIds,
+            ),
+          );
+        }
+      },
+    );
   }
 
-  String _mapFailureToMessage(Failure failure) {
-    switch (failure.runtimeType) {
-      case ServerFailure:
-        return 'Failed to load teams. Please try again.';
-      case NetworkFailure:
-        return 'No internet connection. Please check your connection.';
-      default:
-        return 'An unexpected error occurred';
-    }
+  bool hasPendingRequest(String teamId) {
+    return state.pendingRequestTeamIds.contains(teamId);
   }
 }

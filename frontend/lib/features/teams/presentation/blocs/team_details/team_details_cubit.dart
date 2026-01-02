@@ -6,14 +6,17 @@ import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_team_by_id_usecase.dart';
 import 'team_details_state.dart';
 import 'package:frontend/core/events/user_status_events.dart';
+import 'package:frontend/features/teams/domain/use_cases/leave_team_usecase.dart';
 
 class TeamDetailsCubit extends Cubit<TeamDetailsState> {
   final GetTeamByIdUseCase getTeamByIdUseCase;
+  final LeaveTeamUseCase leaveTeamUseCase;
   final StreamController<UserStatusEvent> userStatusController;
   StreamSubscription? _userStatusSubscription;
 
   TeamDetailsCubit({
     required this.getTeamByIdUseCase,
+    required this.leaveTeamUseCase,
     required this.userStatusController,
   }) : super(const TeamDetailsState()) {
     print('🟢 TeamDetailsCubit: Constructor called, setting up listener');
@@ -25,13 +28,7 @@ class TeamDetailsCubit extends Cubit<TeamDetailsState> {
           '🟡 TeamDetailsCubit: Received UserStatusEvent - User: ${event.userId}, Online: ${event.isOnline}, Team: ${event.teamId}',
         );
 
-        if (event is UserStatusEvent) {
-          updateMemberOnlineStatus(event.userId, event.isOnline);
-        } else {
-          print(
-            '🔴 TeamDetailsCubit: Received unknown event type: ${event.runtimeType}',
-          );
-        }
+        updateMemberOnlineStatus(event.userId, event.isOnline);
       },
       onError: (error) {
         print('🔴 TeamDetailsCubit: Error in userStatus stream: $error');
@@ -94,19 +91,13 @@ class TeamDetailsCubit extends Cubit<TeamDetailsState> {
 
     var foundMember = false;
     final updatedMembers = currentTeam.members.map((member) {
-      if (member.id == userId) {
+      if (member.userId == userId) {
+        // FIX: Use userId instead of id
         foundMember = true;
         print(
           '🟢 TeamDetailsCubit: Found user ${member.name}, updating online status to $isOnline',
         );
-        return TeamMember(
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          role: member.role,
-          joinedAt: member.joinedAt,
-          isOnline: isOnline,
-        );
+        return member.copyWith(isOnline: isOnline); // FIX: Use copyWith method
       }
       return member;
     }).toList();
@@ -129,7 +120,65 @@ class TeamDetailsCubit extends Cubit<TeamDetailsState> {
   }
 
   String _mapFailureToMessage(Failure failure) {
-    return 'Failed to load team details';
+    if (failure is ServerFailure) {
+      return failure.message;
+    } else if (failure is NetworkFailure) {
+      return 'No internet connection';
+    } else if (failure is CacheFailure) {
+      return 'Cache error';
+    }
+    return 'An unexpected error occurred';
+  }
+
+  Future<bool> leaveTeam(String teamId) async {
+    try {
+      print('🟡 TeamDetailsCubit: Leaving team: $teamId');
+      emit(state.copyWith(status: TeamDetailsStatus.loading));
+
+      final result = await leaveTeamUseCase(teamId);
+
+      return result.fold(
+        (failure) {
+          final errorMessage = _mapFailureToMessage(failure);
+          print('🔴 TeamDetailsCubit: Failed to leave team: $errorMessage');
+          print('🔴 TeamDetailsCubit: Failure type: ${failure.runtimeType}');
+
+          if (failure is ServerFailure) {
+            print(
+              '🔴 TeamDetailsCubit: Server failure details: ${failure.message}',
+            );
+            // Check if it's a 404 - endpoint not found
+            if (failure.message.contains('404') ||
+                failure.message.contains('Cannot DELETE')) {
+              print('🔴 TeamDetailsCubit: Backend endpoint might not exist');
+            }
+          }
+
+          emit(
+            state.copyWith(
+              status: TeamDetailsStatus.error,
+              errorMessage: errorMessage,
+            ),
+          );
+          return false;
+        },
+        (_) {
+          print('🟢 TeamDetailsCubit: Successfully left team: $teamId');
+          emit(state.copyWith(status: TeamDetailsStatus.success));
+          return true;
+        },
+      );
+    } catch (e, stackTrace) {
+      print('🔴 TeamDetailsCubit: Exception leaving team: $e');
+      print('🔴 TeamDetailsCubit: Stack trace: $stackTrace');
+      emit(
+        state.copyWith(
+          status: TeamDetailsStatus.error,
+          errorMessage: 'Failed to leave team: $e',
+        ),
+      );
+      return false;
+    }
   }
 
   @override

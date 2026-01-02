@@ -216,6 +216,8 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         final team = teamsToShow[index];
+        final hasPendingRequest = state.pendingRequestTeamIds.contains(team.id);
+
         return Padding(
           padding: EdgeInsets.fromLTRB(
             16,
@@ -227,7 +229,8 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
             team: team,
             onTap: () => _navigateToTeamDetails(context, team.id),
             onJoin: () => _joinTeam(context, team.id),
-            isJoining: false,
+            isJoining: state.joiningTeamId == team.id,
+            hasPendingRequest: hasPendingRequest,
           ),
         );
       }, childCount: teamsToShow.length),
@@ -240,5 +243,30 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
 
   void _joinTeam(BuildContext context, String teamId) {
     context.read<BrowseTeamsCubit>().joinTeam(teamId);
+
+    // Listen for result and show appropriate snackbar
+    final cubit = context.read<BrowseTeamsCubit>();
+
+    // Use a listener or check state after action
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+
+      final state = cubit.state;
+      if (state.pendingRequestTeamIds.contains(teamId)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Join request sent successfully!'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      } else if (state.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(state.errorMessage!),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    });
   }
 }

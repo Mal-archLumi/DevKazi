@@ -61,30 +61,31 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<Either<Failure, void>> sendMessage(
     String teamId,
-    String content,
-  ) async {
+    String content, {
+    String? replyToId,
+  }) async {
     if (!await networkInfo.isConnected) {
       return Left(NetworkFailure());
     }
 
     try {
-      _logger.i('📤 Sending message to team $teamId');
+      _logger.i(
+        '📤 Sending message to team $teamId${replyToId != null ? ' (reply to: $replyToId)' : ''}',
+      );
       _logger.i(
         '🔍 Remote data source connected: ${remoteDataSource.isConnected}',
       );
 
-      // The timeout is now handled well in the data source
-      // It will complete successfully even if ACK times out
-      await remoteDataSource.sendMessage(teamId, content);
+      // The remote data source needs to be updated to handle replyToId
+      // For now, we'll send it as part of the message data
+      await remoteDataSource.sendMessage(teamId, content, replyToId: replyToId);
 
       _logger.i('✅ Message send operation completed');
       return const Right(null);
     } catch (e) {
       _logger.e('❌ Error sending message: $e');
 
-      // Only treat as failure if it's a real error, not a timeout
       if (e is TimeoutException) {
-        // Timeout is handled gracefully, don't return error
         _logger.w(
           '⚠️ Send timeout occurred but message may still be delivered',
         );
@@ -123,5 +124,25 @@ class ChatRepositoryImpl implements ChatRepository {
   void emit(String event, dynamic data) {
     // ADD THIS
     remoteDataSource.emit(event, data);
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteMessages(
+    String teamId,
+    List<String> messageIds,
+  ) async {
+    if (!await networkInfo.isConnected) {
+      return Left(NetworkFailure());
+    }
+
+    try {
+      // You'll need to implement this in your remote data source
+      // This could be an HTTP call or socket emission
+      await remoteDataSource.deleteMessages(teamId, messageIds);
+      return const Right(null);
+    } catch (e) {
+      _logger.e('❌ Error deleting messages: $e');
+      return Left(ServerFailure('Failed to delete messages: $e'));
+    }
   }
 }

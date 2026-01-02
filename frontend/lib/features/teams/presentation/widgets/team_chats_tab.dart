@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Add this import for Clipboard
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
+import 'package:frontend/features/chat/domain/entities/message_entity.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_state.dart';
 import 'package:frontend/core/injection_container.dart' as di;
+import 'package:frontend/features/chat/presentation/widgets/message_bubble.dart';
+// Assuming MessageBubble is defined elsewhere or add it here if needed
+// import 'path/to/message_bubble.dart'; // Add if MessageBubble is in a separate file
 
 class TeamChatsTab extends StatefulWidget {
   final String teamId;
@@ -125,10 +130,14 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     });
   }
 
-  void _sendMessage() {
+  void _sendMessage(ChatCubit cubit) {
     final content = _messageController.text.trim();
     if (content.isNotEmpty) {
-      _chatCubit.sendMessage(widget.teamId, content);
+      cubit.sendMessage(
+        widget.teamId,
+        content,
+        replyToId: cubit.state.replyingTo?.id,
+      );
       _messageController.clear();
 
       // Scroll to bottom after sending
@@ -136,6 +145,203 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
         _scrollToBottom(animate: true);
       });
     }
+  }
+
+  void _handleMessageTap(String messageId) {
+    final cubit = BlocProvider.of<ChatCubit>(context);
+
+    if (cubit.state.isSelectionMode) {
+      cubit.toggleMessageSelection(messageId);
+    }
+  }
+
+  void _handleMessageLongPress(String messageId) {
+    final cubit = BlocProvider.of<ChatCubit>(context);
+    cubit.toggleMessageSelection(messageId);
+
+    // Show context menu
+    _showMessageContextMenu(messageId);
+  }
+
+  void _showMessageContextMenu(String messageId) {
+    final cubit = BlocProvider.of<ChatCubit>(context);
+    final message = cubit.state.messages.firstWhere(
+      (msg) => msg.id == messageId,
+      orElse: () => throw Exception('Message not found'),
+    );
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(context);
+                cubit.setReplyingTo(message);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Delete'),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation([messageId]);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy Text'),
+              onTap: () {
+                Navigator.pop(context);
+                _copyToClipboard(message.content);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(List<String> messageIds) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: Text(
+          messageIds.length == 1
+              ? 'Are you sure you want to delete this message?'
+              : 'Are you sure you want to delete ${messageIds.length} messages?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              final cubit = BlocProvider.of<ChatCubit>(context);
+              cubit.deleteSelectedMessages(widget.teamId);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
+  }
+
+  Widget _buildActionAppBar(ChatState state, ChatCubit cubit) {
+    if (!state.isSelectionMode) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: Row(
+        children: [
+          Text(
+            '${state.selectedMessageIds.length} selected',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+          ),
+          const Spacer(),
+          if (state.selectedMessageIds.length == 1)
+            IconButton(
+              icon: const Icon(Icons.reply),
+              onPressed: () {
+                final messageId = state.selectedMessageIds.first;
+                final message = state.messages.firstWhere(
+                  (msg) => msg.id == messageId,
+                );
+                cubit.setReplyingTo(message);
+                cubit.clearSelection();
+              },
+            ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () =>
+                _showDeleteConfirmation(state.selectedMessageIds.toList()),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: cubit.clearSelection,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyPreview(ChatState state, ChatCubit cubit) {
+    if (state.replyingTo == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.reply,
+            color: Theme.of(context).colorScheme.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Replying to ${state.replyingTo!.senderName}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  state.replyingTo!.content,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            iconSize: 20,
+            onPressed: () => cubit.setReplyingTo(null),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -194,6 +400,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
           }
         },
         builder: (context, state) {
+          final cubit = BlocProvider.of<ChatCubit>(context);
           final isConnected = state.isConnected;
 
           if (state.status == ChatStatus.connecting ||
@@ -203,6 +410,9 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
 
           return Column(
             children: [
+              // Action App Bar for selection mode
+              _buildActionAppBar(state, cubit),
+
               // Connection status indicator
               Container(
                 width: double.infinity,
@@ -266,114 +476,33 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                           final isCurrentUser =
                               message.senderId == _currentUser!.id;
 
-                          return Container(
-                            margin: const EdgeInsets.symmetric(
-                              vertical: 4,
-                              horizontal: 8,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: isCurrentUser
-                                  ? MainAxisAlignment.end
-                                  : MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                if (!isCurrentUser)
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: Colors.blue,
-                                    child: Text(
-                                      message.senderName.isNotEmpty
-                                          ? message.senderName[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                if (!isCurrentUser) const SizedBox(width: 8),
-                                Flexible(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: isCurrentUser
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.primary
-                                          : Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (!isCurrentUser)
-                                          Text(
-                                            message.senderName,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        if (!isCurrentUser)
-                                          const SizedBox(height: 4),
-                                        Text(
-                                          message.content,
-                                          style: TextStyle(
-                                            color: isCurrentUser
-                                                ? Theme.of(
-                                                    context,
-                                                  ).colorScheme.onPrimary
-                                                : Theme.of(
-                                                    context,
-                                                  ).colorScheme.onSurface,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color:
-                                                (isCurrentUser
-                                                        ? Theme.of(context)
-                                                              .colorScheme
-                                                              .onPrimary
-                                                        : Theme.of(context)
-                                                              .colorScheme
-                                                              .onSurface)
-                                                    .withOpacity(0.7),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                if (isCurrentUser) const SizedBox(width: 8),
-                                if (isCurrentUser)
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: Colors.green,
-                                    child: const Icon(
-                                      Icons.person,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                          // Find reply message if this is a reply
+                          MessageEntity? replyToMessage;
+                          if (message.replyToId != null) {
+                            replyToMessage = state.messages
+                                .cast<MessageEntity?>()
+                                .firstWhere(
+                                  (msg) => msg?.id == message.replyToId,
+                                  orElse: () => null,
+                                );
+                          }
+
+                          return MessageBubble(
+                            message: message,
+                            isCurrentUser: isCurrentUser,
+                            context: context,
+                            isSelected: state.isMessageSelected(message.id),
+                            isSelectionMode: state.isSelectionMode,
+                            replyToMessage: replyToMessage,
+                            onTap: () => _handleMessageTap(message.id),
+                            onLongPress: () =>
+                                _handleMessageLongPress(message.id),
                           );
                         },
                       ),
               ),
 
-              // Message input field
+              // Message input field (updated to handle replies)
               Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
@@ -385,46 +514,54 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                     ),
                   ],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          decoration: InputDecoration(
-                            hintText: 'Type a message...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                child: Column(
+                  children: [
+                    // Reply preview in input area
+                    _buildReplyPreview(state, cubit),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              decoration: InputDecoration(
+                                hintText: state.replyingTo != null
+                                    ? 'Reply to ${state.replyingTo!.senderName}...'
+                                    : 'Type a message...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              maxLines: null,
+                              textCapitalization: TextCapitalization.sentences,
+                              onSubmitted: (value) => _sendMessage(cubit),
                             ),
                           ),
-                          maxLines: null,
-                          textCapitalization: TextCapitalization.sentences,
-                          onSubmitted: (value) => _sendMessage(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _hasText
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.grey,
-                        ),
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.send,
-                            color: _hasText ? Colors.white : Colors.white70,
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _hasText
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.send),
+                              color: _hasText ? Colors.white : Colors.white70,
+                              onPressed: _hasText
+                                  ? () => _sendMessage(cubit)
+                                  : null,
+                            ),
                           ),
-                          onPressed: _hasText ? _sendMessage : null,
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -442,3 +579,6 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     super.dispose();
   }
 }
+
+// Note: MessageBubble widget needs to be defined. Assuming it's implemented separately.
+// If not, you can replace the MessageBubble usage with the original inline Container code, but updated for selection and reply display.

@@ -1,7 +1,7 @@
 // lib/features/teams/presentation/blocs/team_details/team_details_state.dart
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 
-enum TeamDetailsStatus { initial, loading, loaded, error }
+enum TeamDetailsStatus { initial, loading, loaded, error, success }
 
 class TeamDetailsState {
   final TeamDetailsStatus status;

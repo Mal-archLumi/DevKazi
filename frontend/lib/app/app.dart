@@ -1,4 +1,4 @@
-// lib/app.dart
+// lib/app.dart - UPDATED VERSION
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -13,6 +13,7 @@ import 'package:frontend/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
 import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
+import 'package:frontend/features/projects/presentation/cubits/projects_cubit.dart'; // ADD THIS IMPORT
 
 class DevKaziApp extends StatefulWidget {
   const DevKaziApp({super.key});
@@ -23,8 +24,7 @@ class DevKaziApp extends StatefulWidget {
 
 class _DevKaziAppState extends State<DevKaziApp> {
   final NavigationService _navigationService = NavigationService();
-  final Future _initDependencies = di
-      .initDependencies(); // Use single initialization
+  final Future _initDependencies = di.initDependencies();
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,7 @@ class _DevKaziAppState extends State<DevKaziApp> {
       future: _initDependencies,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return MaterialApp(
+          return const MaterialApp(
             home: Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
@@ -47,6 +47,10 @@ class _DevKaziAppState extends State<DevKaziApp> {
             ),
             BlocProvider<ChatCubit>(create: (context) => di.getIt<ChatCubit>()),
             BlocProvider<UserCubit>(create: (context) => di.getIt<UserCubit>()),
+            // ADD ProjectsCubit to the MultiBlocProvider
+            BlocProvider<ProjectsCubit>(
+              create: (context) => di.getIt<ProjectsCubit>(),
+            ),
           ],
           child: ValueListenableBuilder<ThemeData>(
             valueListenable: themeManager.themeNotifier,

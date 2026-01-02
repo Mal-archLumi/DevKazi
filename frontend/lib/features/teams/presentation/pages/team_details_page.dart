@@ -12,8 +12,11 @@ import '../widgets/team_members_tab.dart';
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/core/injection_container.dart' as di;
-import 'package:frontend/features/user/presentation/cubits/user_cubit.dart'; // ADD THIS
+import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
+import 'package:frontend/features/projects/presentation/cubits/projects_cubit.dart';
+import 'package:frontend/features/teams/presentation/cubits/join_requests_cubit.dart';
+import 'package:frontend/features/teams/presentation/pages/join_requests_page.dart';
 
 class TeamDetailsPage extends StatefulWidget {
   final TeamEntity team;
@@ -28,10 +31,13 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   final PageController _pageController = PageController();
   int _currentTabIndex = 0;
   String? _accessToken;
+  String? _currentUserId;
+  late JoinRequestsCubit _joinRequestsCubit;
 
   @override
   void initState() {
     super.initState();
+    _joinRequestsCubit = di.getIt<JoinRequestsCubit>();
     context.read<TeamDetailsCubit>().loadTeamWithMembers(widget.team.id);
     _loadAccessToken();
   }
@@ -41,56 +47,39 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
       final authRepository = di.getIt<AuthRepository>();
       final token = await authRepository.getAccessToken();
 
-      // Get current user from UserCubit
       final userCubit = di.getIt<UserCubit>();
-
       UserEntity? currentUser;
 
-      // Check if user is already loaded in UserCubit
       if (userCubit.state is UserLoaded) {
         final userState = userCubit.state as UserLoaded;
         currentUser = userState.user;
-        print(
-          '🟢 TeamDetailsPage: Found current user in UserCubit: ${currentUser.name} (${currentUser.id})',
-        );
       } else {
-        // If user is not loaded, load it first
-        print('🟡 TeamDetailsPage: User not loaded, loading current user...');
         await userCubit.loadCurrentUser();
-
-        // Wait a moment for the state to update, then check again
         await Future.delayed(const Duration(milliseconds: 100));
 
         if (userCubit.state is UserLoaded) {
           final userState = userCubit.state as UserLoaded;
           currentUser = userState.user;
-          print(
-            '🟢 TeamDetailsPage: Loaded current user: ${currentUser.name} (${currentUser.id})',
-          );
-        } else {
-          print(
-            '🔴 TeamDetailsPage: Failed to load current user. State: ${userCubit.state}',
-          );
         }
       }
 
+      _currentUserId = currentUser?.id;
+
       if (currentUser != null && token != null) {
-        print(
-          '🟢 TeamDetailsPage: Connecting to chat for team ${widget.team.id}',
-        );
         final chatCubit = di.getIt<ChatCubit>();
         chatCubit.connectToChat(widget.team.id, token, currentUser);
-      } else {
-        print(
-          '🔴 TeamDetailsPage: Cannot connect to chat - user: ${currentUser != null}, token: ${token != null}',
-        );
+      }
+
+      // Load join requests if user is creator
+      if (_currentUserId == widget.team.creatorId) {
+        _joinRequestsCubit.loadJoinRequests(widget.team.id);
       }
 
       setState(() {
         _accessToken = token;
       });
     } catch (e) {
-      print('Error loading access token: $e');
+      debugPrint('Error loading access token: $e');
     }
   }
 
@@ -115,81 +104,106 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   Widget build(BuildContext context) {
     return BlocBuilder<TeamDetailsCubit, TeamDetailsState>(
       builder: (context, state) {
-        // Show loading if token is not ready
         if (_accessToken == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        return Scaffold(
-          appBar: TeamDetailsAppBar(
-            team: state.team,
-            isLoading: state.status == TeamDetailsStatus.loading,
-          ),
-          body: Column(
-            children: [
-              _buildTeamHeader(state.team),
-              TeamTabNavigation(
-                currentIndex: _currentTabIndex,
-                onTabChanged: _onTabChanged,
-              ),
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  onPageChanged: _onTabChanged,
+        final TeamEntity displayTeam = state.team ?? widget.team;
+        final bool isCreator = displayTeam.creatorId == _currentUserId;
+
+        return BlocProvider.value(
+          value: _joinRequestsCubit,
+          child: BlocBuilder<JoinRequestsCubit, JoinRequestsState>(
+            bloc: _joinRequestsCubit,
+            builder: (context, joinRequestsState) {
+              final pendingCount = joinRequestsState.pendingCount;
+
+              return Scaffold(
+                appBar: TeamDetailsAppBar(
+                  team: displayTeam,
+                  isLoading:
+                      state.status == TeamDetailsStatus.loading &&
+                      state.team == null,
+                ),
+                body: Column(
                   children: [
-                    // FIXED: Use BlocProvider.value to share the same ChatCubit instance
-                    BlocProvider.value(
-                      value: di.getIt<ChatCubit>(),
-                      child: TeamChatsTab(
-                        teamId: widget.team.id,
-                        accessToken: _accessToken!,
+                    _buildTeamHeader(displayTeam),
+                    TeamTabNavigation(
+                      currentIndex: _currentTabIndex,
+                      onTabChanged: _onTabChanged,
+                      showRequestsTab: isCreator,
+                      pendingRequestsCount: pendingCount,
+                    ),
+                    Expanded(
+                      child: PageView(
+                        controller: _pageController,
+                        onPageChanged: _onTabChanged,
+                        children: [
+                          BlocProvider.value(
+                            value: di.getIt<ChatCubit>(),
+                            child: TeamChatsTab(
+                              teamId: widget.team.id,
+                              accessToken: _accessToken!,
+                            ),
+                          ),
+                          BlocProvider(
+                            create: (context) => di.getIt<ProjectsCubit>(),
+                            child: TeamProjectsTab(teamId: widget.team.id),
+                          ),
+                          const TeamMembersTab(),
+                          if (isCreator)
+                            BlocProvider.value(
+                              value: _joinRequestsCubit,
+                              child: JoinRequestsPage(
+                                teamId: widget.team.id,
+                                isTeamCreator: true,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    const TeamProjectsTab(),
-                    const TeamMembersTab(),
                   ],
                 ),
-              ),
-            ],
+              );
+            },
           ),
         );
       },
     );
   }
 
-  Widget _buildTeamHeader(TeamEntity? team) {
-    if (team == null) return const SizedBox.shrink();
-
+  Widget _buildTeamHeader(TeamEntity team) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(
           context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
         border: Border(
           bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (team.description != null && team.description!.isNotEmpty) ...[
             Text(
               team.description!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.8),
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
           ],
           Row(
             children: [
-              _buildMemberAvatars(team),
-              const Spacer(),
+              Expanded(child: _buildMemberAvatars(team)),
+              const SizedBox(width: 12),
               _buildTeamStatus(team.memberCount),
             ],
           ),
@@ -199,47 +213,42 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   Widget _buildMemberAvatars(TeamEntity team) {
-    // Generate colors based on team name for consistency
-    print(
-      '🟡 _buildMemberAvatars: team.members.length = ${team.members.length}',
-    );
-    print('🟡 _buildMemberAvatars: team.memberCount = ${team.memberCount}');
     final colors = _generateColorsFromTeamName(team.name);
 
-    return Expanded(
-      child: Row(
-        children: [
-          // Check if members list has data
-          if (team.members.isNotEmpty)
-            for (int i = 0; i < team.members.length && i < 4; i++)
-              Padding(
-                padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
-                child: _buildMemberAvatar(
-                  team.members[i].initials,
-                  colors[i % colors.length],
-                ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (team.members.isNotEmpty)
+          ...List.generate(
+            team.members.length > 4 ? 4 : team.members.length,
+            (i) => Padding(
+              padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
+              child: _buildMemberAvatar(
+                team.members[i].initials,
+                colors[i % colors.length],
               ),
-          if (team.members.length > 4) ...[
-            const SizedBox(width: 8),
-            _buildExtraMembersCount(team.members.length - 4),
-          ],
-          // Fallback if no members data
-          if (team.members.isEmpty)
-            for (int i = 0; i < team.memberCount && i < 4; i++)
-              Padding(
-                padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
-                child: _buildMemberAvatar(
-                  team.name[i % team.name.length].toUpperCase(),
-                  colors[i % colors.length],
-                ),
-              ),
+            ),
+          ),
+        if (team.members.length > 4) ...[
+          const SizedBox(width: 8),
+          _buildExtraMembersCount(team.members.length - 4),
         ],
-      ),
+        if (team.members.isEmpty && team.memberCount > 0)
+          ...List.generate(
+            team.memberCount > 4 ? 4 : team.memberCount,
+            (i) => Padding(
+              padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
+              child: _buildMemberAvatar(
+                team.name[i % team.name.length].toUpperCase(),
+                colors[i % colors.length],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
   List<Color> _generateColorsFromTeamName(String teamName) {
-    // Generate consistent colors based on team name
     final colors = [
       Colors.blue,
       Colors.green,
@@ -251,7 +260,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
       Colors.amber,
     ];
 
-    // Use team name hash to determine color sequence
     final hash = teamName.hashCode;
     return [
       colors[hash % colors.length],
@@ -291,10 +299,10 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
         shape: BoxShape.circle,
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -302,9 +310,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
         child: Text(
           '+$count',
           style: TextStyle(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
             fontSize: 10,
             fontWeight: FontWeight.bold,
           ),
@@ -314,18 +320,18 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   Widget _buildTeamStatus(int memberCount) {
-    final isFull = memberCount >= 4; // Changed to max 4 members
+    final isFull = memberCount >= 4;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: isFull
-            ? Colors.red.withValues(alpha: 0.1)
-            : Colors.green.withValues(alpha: 0.1),
+            ? Colors.red.withOpacity(0.1)
+            : Colors.green.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isFull
-              ? Colors.red.withValues(alpha: 0.3)
-              : Colors.green.withValues(alpha: 0.3),
+              ? Colors.red.withOpacity(0.3)
+              : Colors.green.withOpacity(0.3),
         ),
       ),
       child: Row(
@@ -338,7 +344,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
           ),
           const SizedBox(width: 4),
           Text(
-            isFull ? 'Full' : '$memberCount/4 members', // Updated to 4
+            isFull ? 'Full' : '$memberCount/4',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,

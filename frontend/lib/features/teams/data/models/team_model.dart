@@ -1,5 +1,5 @@
 // data/models/team_model.dart
-import '../../domain/entities/team_entity.dart';
+import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 
 class TeamModel extends TeamEntity {
   const TeamModel({
@@ -7,49 +7,65 @@ class TeamModel extends TeamEntity {
     required super.name,
     super.description,
     super.logoUrl,
-    required super.memberCount,
-    required super.createdAt,
-    required super.lastActivity,
-    super.ownerName,
-    super.isMember,
-    super.inviteCode,
-    required super.members, // ADD THIS
+    super.skills,
+    super.members = const [],
+    super.memberCount = 0,
+    super.maxMembers,
+    required super.creatorId,
+    super.lastActivity,
+    super.createdAt,
   });
 
   factory TeamModel.fromJson(Map<String, dynamic> json) {
-    print('🟡 TeamModel.fromJson: Starting parsing');
-    print('🟡 TeamModel.fromJson: json keys: ${json.keys}');
-    print('🟡 TeamModel.fromJson: members data: ${json['members']}');
+    // Safely parse skills - handle null, non-list, and list cases
+    List<String>? skillsList;
+    final rawSkills = json['skills'];
+    if (rawSkills != null && rawSkills is List) {
+      skillsList = rawSkills
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList()
+          .cast<String>();
+    }
 
-    // Use TeamEntity.fromJson to parse members data
-    final teamEntity = TeamEntity.fromJson(json);
+    // Safely parse members
+    List<TeamMember> membersList = [];
+    final rawMembers = json['members'];
+    if (rawMembers != null && rawMembers is List) {
+      membersList = rawMembers
+          .whereType<Map<String, dynamic>>()
+          .map((m) => TeamMember.fromJson(m))
+          .toList();
+    }
+
+    // Get owner/creator ID
+    String creatorId = '';
+    final owner = json['owner'];
+    if (owner is Map<String, dynamic>) {
+      creatorId = owner['_id']?.toString() ?? owner['id']?.toString() ?? '';
+    } else if (owner is String) {
+      creatorId = owner;
+    } else {
+      creatorId = json['creatorId']?.toString() ?? '';
+    }
 
     return TeamModel(
-      id: teamEntity.id,
-      name: teamEntity.name,
-      description: teamEntity.description,
-      logoUrl: teamEntity.logoUrl,
-      memberCount: teamEntity.memberCount,
-      createdAt: teamEntity.createdAt,
-      lastActivity: teamEntity.lastActivity,
-      ownerName: teamEntity.ownerName,
-      isMember: teamEntity.isMember,
-      inviteCode: teamEntity.inviteCode,
-      members: teamEntity.members, // ADD THIS
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString(),
+      logoUrl: json['logoUrl']?.toString(),
+      skills: skillsList,
+      members: membersList,
+      memberCount: json['memberCount'] as int? ?? membersList.length,
+      maxMembers: json['maxMembers'] as int?,
+      creatorId: creatorId,
+      lastActivity: json['lastActivity'] != null
+          ? DateTime.tryParse(json['lastActivity'].toString())
+          : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
     );
-  }
-
-  static DateTime _parseDateTime(dynamic date) {
-    if (date == null) return DateTime.now();
-    if (date is String) {
-      try {
-        return DateTime.parse(date);
-      } catch (e) {
-        return DateTime.now();
-      }
-    }
-    if (date is int) return DateTime.fromMillisecondsSinceEpoch(date);
-    return DateTime.now();
   }
 
   Map<String, dynamic> toJson() {
@@ -58,12 +74,24 @@ class TeamModel extends TeamEntity {
       'name': name,
       'description': description,
       'logoUrl': logoUrl,
+      'skills': skills,
+      'members': members
+          .map(
+            (m) => {
+              'userId': m.userId,
+              'name': m.name,
+              'email': m.email,
+              'avatarUrl': m.avatarUrl,
+              'role': m.role,
+              'joinedAt': m.joinedAt?.toIso8601String(),
+            },
+          )
+          .toList(),
       'memberCount': memberCount,
-      'createdAt': createdAt.toIso8601String(),
-      'lastActivity': lastActivity.toIso8601String(),
-      'ownerName': ownerName,
-      'isMember': isMember,
-      'inviteCode': inviteCode,
+      'maxMembers': maxMembers,
+      'creatorId': creatorId,
+      'lastActivity': lastActivity?.toIso8601String(),
+      'createdAt': createdAt?.toIso8601String(),
     };
   }
 }

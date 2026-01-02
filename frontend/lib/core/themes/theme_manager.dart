@@ -33,7 +33,6 @@ class ThemeManager with ChangeNotifier {
         return DarkTheme.dark;
       case AppThemeMode.light:
       case AppThemeMode.system:
-      default:
         return AppTheme.light;
     }
   }

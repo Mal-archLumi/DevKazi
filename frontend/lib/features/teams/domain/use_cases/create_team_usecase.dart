@@ -9,10 +9,15 @@ class CreateTeamUseCase {
 
   CreateTeamUseCase(this.repository);
 
-  Future<Either<Failure, TeamEntity>> call(
-    String name,
-    String? description,
-  ) async {
-    return repository.createTeam(name, description);
+  Future<Either<Failure, TeamEntity>> call({
+    required String name,
+    required String description,
+    required List<String> skills,
+  }) async {
+    return repository.createTeam(
+      name: name,
+      description: description,
+      skills: skills,
+    );
   }
 }

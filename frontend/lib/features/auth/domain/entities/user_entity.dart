@@ -91,4 +91,12 @@ class UserEntity {
         accessToken.hashCode ^
         refreshToken.hashCode;
   }
+
+  get teams => null;
+
+  get teamCount => null;
+
+  get projectCount => null;
+
+  get picture => null;
 }

@@ -11,14 +11,18 @@ import 'package:frontend/features/auth/domain/repositories/auth_repository.dart'
 abstract class ChatRemoteDataSource {
   Stream<MessageModel> get messageStream;
   Stream<void> get onConnected;
-  Stream<Map<String, dynamic>> get userStatusStream; // ADD THIS
+  Stream<Map<String, dynamic>> get userStatusStream;
   Future<void> connect(String teamId, String token);
   Future<void> disconnect();
-  Future<void> sendMessage(String teamId, String content);
+  Future<void> sendMessage(String teamId, String content, {String? replyToId});
   Future<List<MessageModel>> getTeamMessages(String teamId);
+
   bool get isConnected;
   String? get currentTeamId;
-  void emit(String event, dynamic data); // ADD THIS
+  void emit(String event, dynamic data);
+
+  // FIX: Remove async and implementation from abstract class
+  Future<void> deleteMessages(String teamId, List<String> messageIds);
 }
 
 class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
@@ -68,6 +72,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     _socket!.off('authentication_error');
     _socket!.off('message_sent');
     _socket!.off('userStatus'); // ADD THIS
+    _socket!.off('messages_deleted'); // ADD THIS
 
     _socket!.onConnect((_) {
       if (_isDisposed) return;
@@ -141,6 +146,24 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         _userStatusStreamController.add(statusData);
       } catch (e) {
         print('❌ User status parse error: $e');
+      }
+    });
+
+    // ADD THIS - Listen for messages deleted event
+    _socket!.on('messages_deleted', (data) {
+      if (_isDisposed) return;
+
+      try {
+        print('🗑️ Received messages_deleted event: $data');
+        // This will be handled by the cubit via userStatusStream
+        _userStatusStreamController.add({
+          'type': 'messages_deleted',
+          'messageIds': data['messageIds'],
+          'deletedBy': data['deletedBy'],
+          'teamId': data['teamId'],
+        });
+      } catch (e) {
+        print('❌ Messages deleted parse error: $e');
       }
     });
 
@@ -328,7 +351,11 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   @override
-  Future<void> sendMessage(String teamId, String content) async {
+  Future<void> sendMessage(
+    String teamId,
+    String content, {
+    String? replyToId,
+  }) async {
     if (_isDisposed) {
       throw Exception('DataSource has been disposed');
     }
@@ -343,14 +370,23 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       );
     }
 
-    print('💬 Sending message to team $teamId: "$content"');
+    print(
+      '💬 Sending message to team $teamId: "$content"${replyToId != null ? ' (reply to: $replyToId)' : ''}',
+    );
 
     final completer = Completer<void>();
+
+    // Prepare message data with optional replyToId
+    final messageData = {
+      'teamId': teamId,
+      'content': content,
+      if (replyToId != null) 'replyToId': replyToId,
+    };
 
     // Use emitWithAck for reliable delivery
     _socket!.emitWithAck(
       'send_message',
-      {'teamId': teamId, 'content': content},
+      messageData,
       ack: (response) {
         if (completer.isCompleted) return;
 
@@ -431,5 +467,97 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     _userStatusStreamController.close(); // ADD THIS
     _socket?.dispose();
     _processedMessageIds.clear();
+  }
+
+  @override
+  Future<void> deleteMessages(String teamId, List<String> messageIds) async {
+    if (_isDisposed) {
+      throw Exception('DataSource has been disposed');
+    }
+
+    if (_socket == null || !_socket!.connected) {
+      throw Exception('Socket not connected');
+    }
+
+    if (_currentTeamId != teamId) {
+      throw Exception(
+        'Connected to wrong team. Expected: $teamId, Current: $_currentTeamId',
+      );
+    }
+
+    print('🗑️ Deleting ${messageIds.length} messages in team $teamId');
+    print('🗑️ Message IDs: ${messageIds.join(", ")}');
+
+    final completer = Completer<void>();
+    bool ackReceived = false;
+
+    // Set timeout BEFORE emitting
+    final timer = Timer(Duration(seconds: 15), () {
+      if (!completer.isCompleted && !ackReceived) {
+        print('⏰ Delete messages timeout');
+        completer.completeError(
+          TimeoutException('Delete timeout after 15 seconds'),
+        );
+      }
+    });
+
+    try {
+      // Use emitWithAck for reliable delivery
+      print('📤 Emitting delete_messages event...');
+
+      _socket!.emitWithAck(
+        'delete_messages',
+        {'teamId': teamId, 'messageIds': messageIds},
+        ack: (response) {
+          ackReceived = true;
+
+          if (completer.isCompleted) {
+            print('⚠️ Acknowledgment received after timeout');
+            return;
+          }
+
+          print('✅ Received delete ACK: $response');
+
+          // Handle different response types
+          if (response == null) {
+            print('⚠️ Null response from server');
+            completer.completeError(ServerFailure('No response from server'));
+            return;
+          }
+
+          // Response should be a Map
+          if (response is Map) {
+            if (response['success'] == true) {
+              print('✅ Delete acknowledged successfully');
+              completer.complete();
+            } else if (response['error'] != null) {
+              print('❌ Server error: ${response['error']}');
+              completer.completeError(ServerFailure(response['error']));
+            } else {
+              print('⚠️ Unexpected response format: $response');
+              completer.completeError(
+                ServerFailure('Unexpected response: $response'),
+              );
+            }
+          } else {
+            print(
+              '⚠️ Response is not a Map: $response (${response.runtimeType})',
+            );
+            completer.completeError(
+              ServerFailure('Invalid response type: ${response.runtimeType}'),
+            );
+          }
+        },
+      );
+
+      print('⏳ Waiting for acknowledgment...');
+      await completer.future;
+      timer.cancel();
+      print('✅ Messages deleted successfully');
+    } catch (e) {
+      timer.cancel();
+      print('❌ Error deleting messages: $e');
+      rethrow;
+    }
   }
 }

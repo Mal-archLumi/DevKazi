@@ -38,28 +38,19 @@ class TeamCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        image: team.logoUrl != null && team.logoUrl!.isNotEmpty
-            ? DecorationImage(
-                image: NetworkImage(team.logoUrl!),
-                fit: BoxFit.cover,
-              )
-            : null,
       ),
-      child: team.logoUrl == null || team.logoUrl!.isEmpty
-          ? Center(
-              child: Text(
-                team.initial,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            )
-          : null,
+      child: Center(
+        child: Text(
+          team.initial ?? '',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     );
   }
 
-  // Rest of the file remains the same...
   Widget _buildTeamInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,7 +65,7 @@ class TeamCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Created ${_formatDate(team.createdAt)}',
+          'Created ${team.createdAt != null ? _formatDate(team.createdAt!) : 'unknown'}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
           ),
@@ -84,10 +75,15 @@ class TeamCard extends StatelessWidget {
   }
 
   Widget _buildTeamMeta(BuildContext context) {
+    // Use actual memberCount from the team entity
+    final displayMemberCount = team.memberCount > 0
+        ? team.memberCount
+        : team.members.length;
+
     return Column(
       children: [
         Text(
-          '${team.memberCount}',
+          '$displayMemberCount',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.w600,
             color: Theme.of(context).colorScheme.primary,

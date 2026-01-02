@@ -8,7 +8,8 @@ class MessageEntity extends Equatable {
   final String senderName;
   final String content;
   final DateTime timestamp;
-  final MessageType type;
+  final String? replyToId; // ADD THIS
+  final MessageEntity? replyToMessage; // ADD THIS - for hydrated replies
 
   const MessageEntity({
     required this.id,
@@ -17,7 +18,8 @@ class MessageEntity extends Equatable {
     required this.senderName,
     required this.content,
     required this.timestamp,
-    this.type = MessageType.text,
+    this.replyToId,
+    this.replyToMessage,
   });
 
   MessageEntity copyWith({
@@ -27,7 +29,8 @@ class MessageEntity extends Equatable {
     String? senderName,
     String? content,
     DateTime? timestamp,
-    MessageType? type,
+    String? replyToId,
+    MessageEntity? replyToMessage,
   }) {
     return MessageEntity(
       id: id ?? this.id,
@@ -36,9 +39,13 @@ class MessageEntity extends Equatable {
       senderName: senderName ?? this.senderName,
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,
-      type: type ?? this.type,
+      replyToId: replyToId ?? this.replyToId,
+      replyToMessage: replyToMessage ?? this.replyToMessage,
     );
   }
+
+  // Helper to check if this message is a reply
+  bool get isReply => replyToId != null && replyToId!.isNotEmpty;
 
   @override
   List<Object?> get props => [
@@ -48,8 +55,7 @@ class MessageEntity extends Equatable {
     senderName,
     content,
     timestamp,
-    type,
+    replyToId,
+    replyToMessage,
   ];
 }
-
-enum MessageType { text, image, file }

@@ -12,12 +12,22 @@ enum ChatStatus {
   disconnected,
 }
 
+class SelectedMessage {
+  final MessageEntity message;
+  final bool isSelected;
+
+  SelectedMessage({required this.message, this.isSelected = false});
+}
+
 class ChatState {
   final ChatStatus status;
   final List<MessageEntity> messages;
   final String? errorMessage;
   final bool isConnected;
   final int unreadCount;
+  final Set<String> selectedMessageIds;
+  final MessageEntity? replyingTo;
+  final bool isSelectionMode;
 
   const ChatState({
     this.status = ChatStatus.initial,
@@ -25,6 +35,9 @@ class ChatState {
     this.errorMessage,
     this.isConnected = false,
     this.unreadCount = 0,
+    this.selectedMessageIds = const {},
+    this.replyingTo,
+    this.isSelectionMode = false,
   });
 
   ChatState copyWith({
@@ -33,6 +46,9 @@ class ChatState {
     String? errorMessage,
     bool? isConnected,
     int? unreadCount,
+    Set<String>? selectedMessageIds,
+    MessageEntity? replyingTo,
+    bool? isSelectionMode,
   }) {
     return ChatState(
       status: status ?? this.status,
@@ -40,6 +56,16 @@ class ChatState {
       errorMessage: errorMessage ?? this.errorMessage,
       isConnected: isConnected ?? this.isConnected,
       unreadCount: unreadCount ?? this.unreadCount,
+      selectedMessageIds: selectedMessageIds ?? this.selectedMessageIds,
+      replyingTo: replyingTo ?? this.replyingTo,
+      isSelectionMode: isSelectionMode ?? this.isSelectionMode,
     );
   }
+
+  List<MessageEntity> get selectedMessages => messages
+      .where((message) => selectedMessageIds.contains(message.id))
+      .toList();
+
+  bool isMessageSelected(String messageId) =>
+      selectedMessageIds.contains(messageId);
 }

@@ -406,22 +406,6 @@ class _TeamsListBodyState extends State<TeamsListBody> {
                   onRetry: () => context.read<TeamsCubit>().loadUserTeams(),
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    final authRepo = getIt<AuthRepository>();
-                    final token = await authRepo.getAccessToken();
-                    Logger().d('🔍 DEBUG: Current token: $token');
-                    if (token == null) {
-                      Logger().d('🔍 DEBUG: NO TOKEN FOUND!');
-                    } else {
-                      Logger().d('🔍 DEBUG: Token length: ${token.length}');
-                      Logger().d(
-                        '🔍 DEBUG: Token preview: ${token.substring(0, min(30, token.length))}...',
-                      );
-                    }
-                  },
-                  child: const Text('Debug: Check Token'),
-                ),
               ],
             ),
           ),

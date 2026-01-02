@@ -9,6 +9,6 @@ class JoinTeamUseCase {
   JoinTeamUseCase(this.repository);
 
   Future<Either<Failure, bool>> call(String teamId) async {
-    return repository.joinTeam(teamId);
+    return repository.requestToJoinTeam(teamId);
   }
 }

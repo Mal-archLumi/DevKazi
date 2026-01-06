@@ -15,6 +15,9 @@ export class Message extends Document {
   @Prop({ default: Date.now })
   timestamp: Date;
 
+  @Prop({ type: Types.ObjectId, ref: 'Message', required: false })
+  replyTo?: Types.ObjectId;
+
   // Virtual for teamId
   get teamId(): string {
     return this.team.toString();

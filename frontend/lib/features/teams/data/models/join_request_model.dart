@@ -1,4 +1,3 @@
-// data/models/join_request_model.dart
 import 'package:frontend/features/teams/domain/entities/join_request_entity.dart';
 
 class JoinRequestModel extends JoinRequestEntity {
@@ -16,40 +15,39 @@ class JoinRequestModel extends JoinRequestEntity {
   });
 
   factory JoinRequestModel.fromJson(Map<String, dynamic> json) {
-    // Handle nested user object
-    final user = json['userId'] is Map
-        ? json['userId'] as Map<String, dynamic>
-        : null;
+    // Handle nested user object OR flat user fields
+    final userObj = json['user'] as Map<String, dynamic>?;
 
     return JoinRequestModel(
-      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      teamId: json['teamId'] is Map
-          ? json['teamId']['_id']?.toString() ?? ''
-          : json['teamId']?.toString() ?? '',
-      userId: user != null
-          ? user['_id']?.toString() ?? ''
-          : json['userId']?.toString() ?? '',
-      userName: user?['name']?.toString(),
-      userEmail: user?['email']?.toString(),
-      userPicture: user?['picture']?.toString(),
-      status: json['status']?.toString() ?? 'pending',
-      message: json['message']?.toString(),
+      id: json['_id'] as String? ?? json['id'] as String,
+      teamId: json['team'] is String
+          ? json['team'] as String
+          : (json['team'] as Map?)?['_id'] as String? ??
+                json['teamId'] as String,
+      userId: userObj?['_id'] as String? ?? json['userId'] as String,
+      userName: userObj?['name'] as String? ?? json['userName'] as String?,
+      userEmail: userObj?['email'] as String? ?? json['userEmail'] as String?,
+      userPicture:
+          userObj?['picture'] as String? ?? json['userPicture'] as String?,
+      status: json['status'] as String,
+      message: json['message'] as String?,
       createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString())
+          ? DateTime.parse(json['createdAt'] as String)
           : null,
       updatedAt: json['updatedAt'] != null
-          ? DateTime.tryParse(json['updatedAt'].toString())
+          ? DateTime.parse(json['updatedAt'] as String)
           : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      '_id': id,
+      'id': id,
       'teamId': teamId,
       'userId': userId,
       'userName': userName,
       'userEmail': userEmail,
+      'userPicture': userPicture,
       'status': status,
       'message': message,
       'createdAt': createdAt?.toIso8601String(),

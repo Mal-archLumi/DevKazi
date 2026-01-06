@@ -44,3 +44,7 @@ class ConnectionFailure extends Failure {
   @override
   String toString() => 'ConnectionFailure: $message';
 }
+
+class AuthFailure extends Failure {
+  const AuthFailure(super.message);
+}

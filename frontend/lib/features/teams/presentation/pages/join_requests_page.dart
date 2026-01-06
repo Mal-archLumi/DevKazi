@@ -145,12 +145,16 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
     );
   }
 
+  // Update the _buildRequestCard method in join_requests_page.dart
   Widget _buildRequestCard(
     BuildContext context,
     JoinRequestEntity request,
     JoinRequestsState state,
   ) {
-    final isProcessing = state.processingRequestId == request.id;
+    // Use different processing states for approve and reject
+    final isApproving = state.processingRequestId == 'approve_${request.id}';
+    final isRejecting = state.processingRequestId == 'reject_${request.id}';
+    final isProcessing = isApproving || isRejecting;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -166,7 +170,6 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
           children: [
             Row(
               children: [
-                // User Avatar
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -179,7 +182,6 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // User Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +222,6 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
               ),
             ],
             const SizedBox(height: 12),
-            // Request date
             Text(
               'Requested ${_formatDate(request.createdAt)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -235,17 +236,24 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
                   child: OutlinedButton.icon(
                     onPressed: isProcessing
                         ? null
-                        : () => context.read<JoinRequestsCubit>().rejectRequest(
-                            request.id,
-                          ),
-                    icon: isProcessing
+                        : () {
+                            // ✅ Use unique ID for reject
+                            if (!isProcessing) {
+                              context.read<JoinRequestsCubit>().rejectRequest(
+                                request.id,
+                              );
+                            }
+                          },
+                    icon: isRejecting
                         ? const SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.close, size: 18),
-                    label: const Text('Reject'),
+                    label: isRejecting
+                        ? const Text('Rejecting...')
+                        : const Text('Reject'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
@@ -258,10 +266,15 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
                   child: ElevatedButton.icon(
                     onPressed: isProcessing
                         ? null
-                        : () => context
-                              .read<JoinRequestsCubit>()
-                              .approveRequest(request.id),
-                    icon: isProcessing
+                        : () {
+                            // ✅ Use unique ID for approve
+                            if (!isProcessing) {
+                              context.read<JoinRequestsCubit>().approveRequest(
+                                request.id,
+                              );
+                            }
+                          },
+                    icon: isApproving
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -271,11 +284,15 @@ class _JoinRequestsPageState extends State<JoinRequestsPage> {
                             ),
                           )
                         : const Icon(Icons.check, size: 18),
-                    label: const Text('Approve'),
+                    label: isApproving
+                        ? const Text('Approving...')
+                        : const Text('Approve'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      disabledBackgroundColor: Colors.grey,
+                      disabledForegroundColor: Colors.white70,
                     ),
                   ),
                 ),

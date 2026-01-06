@@ -1,6 +1,7 @@
 // data/repositories/team_repository_impl.dart
 import 'package:dartz/dartz.dart';
 import 'package:frontend/core/injection_container.dart';
+import 'package:frontend/features/teams/data/models/join_request_model.dart';
 import 'dart:developer';
 import '../../domain/entities/team_entity.dart';
 import '../../domain/entities/join_request_entity.dart';
@@ -43,7 +44,6 @@ class TeamRepositoryImpl implements TeamRepository {
           '🟢 TeamRepositoryImpl.getUserTeams: Successfully fetched ${remoteTeams.length} teams',
         );
 
-        // Log team names for debugging
         for (var team in remoteTeams) {
           log(
             '🟢 TeamRepositoryImpl.getUserTeams: Team - ${team.name} (${team.id})',
@@ -74,7 +74,6 @@ class TeamRepositoryImpl implements TeamRepository {
       log('🔴 TeamRepositoryImpl.getUserTeams: Unexpected error - $e');
       log('🔴 TeamRepositoryImpl.getUserTeams: Stack trace: $stackTrace');
 
-      // Handle cache exceptions and other unexpected errors
       if (e is CacheException) {
         return Left(CacheFailure(e.message));
       }
@@ -88,46 +87,14 @@ class TeamRepositoryImpl implements TeamRepository {
       log(
         '🟡 TeamRepositoryImpl.searchTeams: Starting search with query: "$query"',
       );
-      log('🟡 TeamRepositoryImpl.searchTeams: Checking network connection...');
 
       if (await networkInfo.isConnected) {
         log(
           '🟢 TeamRepositoryImpl.searchTeams: Network connected, calling remote data source...',
         );
 
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.searchTeams: Token available for search: ${token != null}',
-        );
-
         final teams = await remoteDataSource.searchTeams(query);
-        log(
-          '🟢 TeamRepositoryImpl.searchTeams: Search completed for query: "$query"',
-        );
         log('🟢 TeamRepositoryImpl.searchTeams: Found ${teams.length} teams');
-
-        // Log detailed team information for debugging
-        if (teams.isEmpty) {
-          log(
-            '🟡 TeamRepositoryImpl.searchTeams: No teams found for query: "$query"',
-          );
-        } else {
-          log(
-            '🟢 TeamRepositoryImpl.searchTeams: Teams found for query "$query":',
-          );
-          for (var i = 0; i < teams.length; i++) {
-            final team = teams[i];
-            log(
-              '🟢 TeamRepositoryImpl.searchTeams: [$i] ${team.name} (ID: ${team.id}) - Members: ${team.memberCount}',
-            );
-            if (team.description != null) {
-              log(
-                '🟢 TeamRepositoryImpl.searchTeams:     Description: ${team.description}',
-              );
-            }
-          }
-        }
 
         return Right(teams);
       } else {
@@ -154,57 +121,15 @@ class TeamRepositoryImpl implements TeamRepository {
       log(
         '🟡 TeamRepositoryImpl.searchBrowseTeams: Starting search with query: "$query"',
       );
-      log(
-        '🟡 TeamRepositoryImpl.searchBrowseTeams: Checking network connection...',
-      );
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.searchBrowseTeams: Network connected, calling remote data source...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.searchBrowseTeams: Token available: ${token != null}',
-        );
-
         final teams = await remoteDataSource.searchBrowseTeams(query);
-
-        log(
-          '🟢 TeamRepositoryImpl.searchBrowseTeams: Search completed for query: "$query"',
-        );
         log(
           '🟢 TeamRepositoryImpl.searchBrowseTeams: Found ${teams.length} teams',
         );
-
-        // Log detailed team information for debugging
-        if (teams.isEmpty) {
-          log(
-            '🟡 TeamRepositoryImpl.searchBrowseTeams: No teams found for query: "$query"',
-          );
-        } else {
-          log(
-            '🟢 TeamRepositoryImpl.searchBrowseTeams: Teams found for query "$query":',
-          );
-          for (var i = 0; i < teams.length; i++) {
-            final team = teams[i];
-            log(
-              '🟢 TeamRepositoryImpl.searchBrowseTeams: [$i] ${team.name} (ID: ${team.id}) - Members: ${team.memberCount}',
-            );
-            if (team.description != null) {
-              log(
-                '🟢 TeamRepositoryImpl.searchBrowseTeams:     Description: ${team.description}',
-              );
-            }
-          }
-        }
-
         return Right(teams);
       } else {
-        log(
-          '🔴 TeamRepositoryImpl.searchBrowseTeams: No internet connection for search',
-        );
+        log('🔴 TeamRepositoryImpl.searchBrowseTeams: No internet connection');
         return Left(NetworkFailure('No internet connection'));
       }
     } on ServerException catch (e) {
@@ -228,19 +153,8 @@ class TeamRepositoryImpl implements TeamRepository {
   }) async {
     try {
       log('🟡 TeamRepositoryImpl.createTeam: Creating team: "$name"');
-      log('🟡 TeamRepositoryImpl.createTeam: Checking network connection...');
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.createTeam: Network connected, creating team...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.createTeam: Token available: ${token != null}',
-        );
-
         final team = await remoteDataSource.createTeam(
           name: name,
           description: description,
@@ -269,31 +183,12 @@ class TeamRepositoryImpl implements TeamRepository {
   Future<Either<Failure, List<TeamEntity>>> getAllTeams() async {
     try {
       log('🟡 TeamRepositoryImpl.getAllTeams: Starting...');
-      log('🟡 TeamRepositoryImpl.getAllTeams: Checking network connection...');
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.getAllTeams: Network connected, fetching all teams...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.getAllTeams: Token available: ${token != null}',
-        );
-
         final remoteTeams = await remoteDataSource.getAllTeams();
         log(
           '🟢 TeamRepositoryImpl.getAllTeams: Successfully fetched ${remoteTeams.length} teams',
         );
-
-        // Log team names for debugging
-        for (var team in remoteTeams) {
-          log(
-            '🟢 TeamRepositoryImpl.getAllTeams: Team - ${team.name} (${team.id})',
-          );
-        }
-
         return Right(remoteTeams);
       } else {
         log('🔴 TeamRepositoryImpl.getAllTeams: No internet connection');
@@ -313,19 +208,8 @@ class TeamRepositoryImpl implements TeamRepository {
   Future<Either<Failure, bool>> joinTeam(String teamId) async {
     try {
       log('🟡 TeamRepositoryImpl.joinTeam: Joining team with ID: $teamId');
-      log('🟡 TeamRepositoryImpl.joinTeam: Checking network connection...');
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.joinTeam: Network connected, joining team...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.joinTeam: Token available: ${token != null}',
-        );
-
         await remoteDataSource.joinTeam(teamId);
         log(
           '🟢 TeamRepositoryImpl.joinTeam: Successfully joined team: $teamId',
@@ -349,22 +233,11 @@ class TeamRepositoryImpl implements TeamRepository {
   Future<Either<Failure, TeamEntity>> getTeamById(String teamId) async {
     try {
       log('🟡 TeamRepositoryImpl.getTeamById: Getting team by ID: $teamId');
-      log('🟡 TeamRepositoryImpl.getTeamById: Checking network connection...');
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.getTeamById: Network connected, fetching team...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.getTeamById: Token available: ${token != null}',
-        );
-
         final remoteTeam = await remoteDataSource.getTeamById(teamId);
         log(
-          '🟢 TeamRepositoryImpl.getTeamById: Successfully fetched team: ${remoteTeam.name} (${remoteTeam.id})',
+          '🟢 TeamRepositoryImpl.getTeamById: Successfully fetched team: ${remoteTeam.name}',
         );
         return Right(remoteTeam);
       } else {
@@ -385,19 +258,8 @@ class TeamRepositoryImpl implements TeamRepository {
   Future<Either<Failure, bool>> leaveTeam(String teamId) async {
     try {
       log('🟡 TeamRepositoryImpl.leaveTeam: Leaving team with ID: $teamId');
-      log('🟡 TeamRepositoryImpl.leaveTeam: Checking network connection...');
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.leaveTeam: Network connected, leaving team...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.leaveTeam: Token available: ${token != null}',
-        );
-
         await remoteDataSource.leaveTeam(teamId);
         log('🟢 TeamRepositoryImpl.leaveTeam: Successfully left team: $teamId');
         return const Right(true);
@@ -407,9 +269,6 @@ class TeamRepositoryImpl implements TeamRepository {
       }
     } on ServerException catch (e) {
       log('🔴 TeamRepositoryImpl.leaveTeam: ServerException - ${e.message}');
-      log(
-        '🔴 TeamRepositoryImpl.leaveTeam: ServerException type: ${e.runtimeType}',
-      );
       return Left(ServerFailure(e.message));
     } catch (e, stackTrace) {
       log('🔴 TeamRepositoryImpl.leaveTeam: Unexpected error - $e');
@@ -422,26 +281,13 @@ class TeamRepositoryImpl implements TeamRepository {
   Future<Either<Failure, bool>> requestToJoinTeam(String teamId) async {
     try {
       log(
-        '🟡 TeamRepositoryImpl.requestToJoinTeam: Requesting to join team with ID: $teamId',
-      );
-      log(
-        '🟡 TeamRepositoryImpl.requestToJoinTeam: Checking network connection...',
+        '🟡 TeamRepositoryImpl.requestToJoinTeam: Requesting to join team: $teamId',
       );
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.requestToJoinTeam: Network connected, requesting to join team...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.requestToJoinTeam: Token available: ${token != null}',
-        );
-
         await remoteDataSource.requestToJoinTeam(teamId);
         log(
-          '🟢 TeamRepositoryImpl.requestToJoinTeam: Successfully requested to join team: $teamId',
+          '🟢 TeamRepositoryImpl.requestToJoinTeam: Successfully requested to join team',
         );
         return const Right(true);
       } else {
@@ -466,26 +312,13 @@ class TeamRepositoryImpl implements TeamRepository {
   ) async {
     try {
       log(
-        '🟡 TeamRepositoryImpl.getJoinRequests: Getting join requests for team ID: $teamId',
-      );
-      log(
-        '🟡 TeamRepositoryImpl.getJoinRequests: Checking network connection...',
+        '🟡 TeamRepositoryImpl.getJoinRequests: Getting join requests for team: $teamId',
       );
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.getJoinRequests: Network connected, fetching join requests...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.getJoinRequests: Token available: ${token != null}',
-        );
-
         final joinRequests = await remoteDataSource.getJoinRequests(teamId);
         log(
-          '🟢 TeamRepositoryImpl.getJoinRequests: Successfully fetched ${joinRequests.length} join requests for team: $teamId',
+          '🟢 TeamRepositoryImpl.getJoinRequests: Successfully fetched ${joinRequests.length} join requests',
         );
         return Right(joinRequests);
       } else {
@@ -513,31 +346,28 @@ class TeamRepositoryImpl implements TeamRepository {
   }) async {
     try {
       log(
-        '🟡 TeamRepositoryImpl.handleJoinRequest: Handling join request $requestId with approved: $approved',
-      );
-      log(
-        '🟡 TeamRepositoryImpl.handleJoinRequest: Checking network connection...',
+        '🟡 TeamRepositoryImpl.handleJoinRequest: Handling request $requestId (approved: $approved)',
       );
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.handleJoinRequest: Network connected, handling join request...',
-        );
-
         final authRepository = getIt<AuthRepository>();
         final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.handleJoinRequest: Token available: ${token != null}',
-        );
 
+        if (token == null) {
+          log('🔴 TeamRepositoryImpl.handleJoinRequest: No access token');
+          return Left(AuthFailure('Not authenticated'));
+        }
+
+        // FIX: Use remoteDataSource instead of direct client call
         final joinRequest = await remoteDataSource.handleJoinRequest(
           teamId: teamId,
           requestId: requestId,
           approved: approved,
           message: message,
         );
+
         log(
-          '🟢 TeamRepositoryImpl.handleJoinRequest: Successfully handled join request $requestId',
+          '🟢 TeamRepositoryImpl.handleJoinRequest: Join request handled successfully',
         );
         return Right(joinRequest);
       } else {
@@ -557,112 +387,26 @@ class TeamRepositoryImpl implements TeamRepository {
   }
 
   @override
-  Future<Either<Failure, void>> cancelJoinRequest(String requestId) async {
-    try {
-      await remoteDataSource.cancelJoinRequest(requestId);
-      return const Right(null);
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Failed to cancel join request: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, List<JoinRequestEntity>>>
-  getMyPendingRequests() async {
-    try {
-      final requests = await remoteDataSource.getMyPendingRequests();
-      return Right(requests);
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Failed to get pending requests: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, List<JoinRequestEntity>>> getTeamJoinRequests(
-    String teamId,
-  ) async {
-    try {
-      log(
-        '🟡 TeamRepositoryImpl.getTeamJoinRequests: Getting join requests for team ID: $teamId',
-      );
-      log(
-        '🟡 TeamRepositoryImpl.getTeamJoinRequests: Checking network connection...',
-      );
-
-      if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.getTeamJoinRequests: Network connected, fetching join requests...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.getTeamJoinRequests: Token available: ${token != null}',
-        );
-
-        final joinRequests = await remoteDataSource.getJoinRequests(teamId);
-        log(
-          '🟢 TeamRepositoryImpl.getTeamJoinRequests: Successfully fetched ${joinRequests.length} join requests for team: $teamId',
-        );
-        return Right(joinRequests);
-      } else {
-        log(
-          '🔴 TeamRepositoryImpl.getTeamJoinRequests: No internet connection',
-        );
-        return Left(NetworkFailure('No internet connection'));
-      }
-    } on ServerException catch (e) {
-      log(
-        '🔴 TeamRepositoryImpl.getTeamJoinRequests: ServerException - ${e.message}',
-      );
-      return Left(ServerFailure(e.message));
-    } catch (e, stackTrace) {
-      log('🔴 TeamRepositoryImpl.getTeamJoinRequests: Unexpected error - $e');
-      log(
-        '🔴 TeamRepositoryImpl.getTeamJoinRequests: Stack trace: $stackTrace',
-      );
-      return Left(ServerFailure('Unexpected error: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, JoinRequestEntity>> approveOrRejectJoinRequest({
+  Future<Either<Failure, bool>> approveOrRejectJoinRequest({
     required String requestId,
-    required String action, // 'approve' or 'reject'
+    required String action,
     String? message,
   }) async {
     try {
       log(
-        '🟡 TeamRepositoryImpl.approveOrRejectJoinRequest: $action request $requestId',
-      );
-      log(
-        '🟡 TeamRepositoryImpl.approveOrRejectJoinRequest: Checking network connection...',
+        '🟡 TeamRepositoryImpl.approveOrRejectJoinRequest: Approving/rejecting request $requestId with action: $action',
       );
 
       if (await networkInfo.isConnected) {
-        log(
-          '🟢 TeamRepositoryImpl.approveOrRejectJoinRequest: Network connected, processing request...',
-        );
-
-        final authRepository = getIt<AuthRepository>();
-        final token = await authRepository.getAccessToken();
-        log(
-          '🟡 TeamRepositoryImpl.approveOrRejectJoinRequest: Token available: ${token != null}',
-        );
-
-        final joinRequest = await remoteDataSource.approveOrRejectJoinRequest(
+        await remoteDataSource.approveOrRejectJoinRequest(
           requestId: requestId,
           action: action,
           message: message,
         );
         log(
-          '🟢 TeamRepositoryImpl.approveOrRejectJoinRequest: Successfully processed request $requestId',
+          '🟢 TeamRepositoryImpl.approveOrRejectJoinRequest: Successfully handled request',
         );
-        return Right(joinRequest);
+        return const Right(true);
       } else {
         log(
           '🔴 TeamRepositoryImpl.approveOrRejectJoinRequest: No internet connection',
@@ -681,6 +425,102 @@ class TeamRepositoryImpl implements TeamRepository {
       log(
         '🔴 TeamRepositoryImpl.approveOrRejectJoinRequest: Stack trace: $stackTrace',
       );
+      return Left(ServerFailure('Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> cancelJoinRequest(String requestId) async {
+    try {
+      log(
+        '🟡 TeamRepositoryImpl.cancelJoinRequest: Canceling request $requestId',
+      );
+
+      if (await networkInfo.isConnected) {
+        await remoteDataSource.cancelJoinRequest(requestId);
+        log('🟢 TeamRepositoryImpl.cancelJoinRequest: Successfully canceled');
+        return const Right(null);
+      } else {
+        log('🔴 TeamRepositoryImpl.cancelJoinRequest: No internet connection');
+        return Left(NetworkFailure('No internet connection'));
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl.cancelJoinRequest: ServerException - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      log('🔴 TeamRepositoryImpl.cancelJoinRequest: Unexpected error - $e');
+      return Left(ServerFailure('Failed to cancel join request: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<JoinRequestEntity>>>
+  getMyPendingRequests() async {
+    try {
+      log('🟡 TeamRepositoryImpl.getMyPendingRequests: Fetching...');
+
+      if (await networkInfo.isConnected) {
+        final requests = await remoteDataSource.getMyPendingRequests();
+        log(
+          '🟢 TeamRepositoryImpl.getMyPendingRequests: Got ${requests.length} requests',
+        );
+        return Right(requests);
+      } else {
+        log(
+          '🔴 TeamRepositoryImpl.getMyPendingRequests: No internet connection',
+        );
+        return Left(NetworkFailure('No internet connection'));
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl.getMyPendingRequests: ServerException - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      log('🔴 TeamRepositoryImpl.getMyPendingRequests: Unexpected error - $e');
+      return Left(ServerFailure('Failed to get pending requests: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<JoinRequestEntity>>> getTeamJoinRequests(
+    String teamId,
+  ) async {
+    try {
+      log(
+        '🟡 TeamRepositoryImpl.getTeamJoinRequests: Fetching for team $teamId',
+      );
+
+      if (await networkInfo.isConnected) {
+        final authRepository = getIt<AuthRepository>();
+        final token = await authRepository.getAccessToken();
+
+        if (token == null) {
+          log('🔴 TeamRepositoryImpl.getTeamJoinRequests: No access token');
+          return Left(AuthFailure('Not authenticated'));
+        }
+
+        final requests = await remoteDataSource.getJoinRequests(teamId);
+        log(
+          '🟢 TeamRepositoryImpl.getTeamJoinRequests: Got ${requests.length} requests',
+        );
+        return Right(requests);
+      } else {
+        log(
+          '🔴 TeamRepositoryImpl.getTeamJoinRequests: No internet connection',
+        );
+        return Left(NetworkFailure('No internet connection'));
+      }
+    } on ServerException catch (e) {
+      log(
+        '🔴 TeamRepositoryImpl.getTeamJoinRequests: ServerException - ${e.message}',
+      );
+      return Left(ServerFailure(e.message));
+    } catch (e, stackTrace) {
+      log('🔴 TeamRepositoryImpl.getTeamJoinRequests: Error - $e');
+      log('🔴 Stack trace: $stackTrace');
       return Left(ServerFailure('Unexpected error: $e'));
     }
   }

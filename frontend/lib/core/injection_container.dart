@@ -309,12 +309,9 @@ Future<void> initDependencies() async {
     () => HandleJoinRequestUseCase(getIt<TeamRepository>()),
   );
 
-  // Register JoinRequestsCubit
-  getIt.registerFactory(
-    () => JoinRequestsCubit(
-      getTeamJoinRequests: getIt<GetTeamJoinRequestsUseCase>(),
-      handleJoinRequest: getIt<HandleJoinRequestUseCase>(),
-    ),
+  // Register JoinRequestsCubit - use factory so each screen gets fresh instance
+  getIt.registerFactory<JoinRequestsCubit>(
+    () => JoinRequestsCubit(teamRepository: getIt<TeamRepository>()),
   );
 }
 

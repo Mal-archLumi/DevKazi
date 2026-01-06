@@ -9,7 +9,10 @@ class GetMessagesUseCase {
 
   GetMessagesUseCase(this.repository);
 
-  Future<Either<Failure, List<MessageEntity>>> call(String teamId) {
-    return repository.getTeamMessages(teamId);
+  Future<Either<Failure, List<MessageEntity>>> call(
+    String teamId, {
+    String? token,
+  }) async {
+    return await repository.getTeamMessages(teamId, token: token);
   }
 }

@@ -28,7 +28,7 @@ class ChatRepositoryImpl implements ChatRepository {
   Stream<void> get onAuthenticated => remoteDataSource.onConnected;
 
   @override
-  Stream<Map<String, dynamic>> get userStatusStream => // ADD THIS
+  Stream<Map<String, dynamic>> get userStatusStream =>
       remoteDataSource.userStatusStream;
 
   @override
@@ -76,8 +76,6 @@ class ChatRepositoryImpl implements ChatRepository {
         '🔍 Remote data source connected: ${remoteDataSource.isConnected}',
       );
 
-      // The remote data source needs to be updated to handle replyToId
-      // For now, we'll send it as part of the message data
       await remoteDataSource.sendMessage(teamId, content, replyToId: replyToId);
 
       _logger.i('✅ Message send operation completed');
@@ -98,14 +96,18 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<Either<Failure, List<MessageEntity>>> getTeamMessages(
-    String teamId,
-  ) async {
+    String teamId, {
+    String? token,
+  }) async {
     if (!await networkInfo.isConnected) {
       return Left(NetworkFailure());
     }
 
     try {
-      final messages = await remoteDataSource.getTeamMessages(teamId);
+      final messages = await remoteDataSource.getTeamMessages(
+        teamId,
+        token: token,
+      );
       final messageEntities = messages
           .map((model) => model.toEntity())
           .toList();
@@ -121,8 +123,10 @@ class ChatRepositoryImpl implements ChatRepository {
   bool get isConnected => remoteDataSource.isConnected;
 
   @override
+  String? get currentTeamId => remoteDataSource.currentTeamId; // ADD THIS
+
+  @override
   void emit(String event, dynamic data) {
-    // ADD THIS
     remoteDataSource.emit(event, data);
   }
 
@@ -136,8 +140,6 @@ class ChatRepositoryImpl implements ChatRepository {
     }
 
     try {
-      // You'll need to implement this in your remote data source
-      // This could be an HTTP call or socket emission
       await remoteDataSource.deleteMessages(teamId, messageIds);
       return const Right(null);
     } catch (e) {

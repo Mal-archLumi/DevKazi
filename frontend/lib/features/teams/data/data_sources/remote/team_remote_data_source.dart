@@ -459,26 +459,6 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   }
 
   @override
-  Future<List<JoinRequestModel>> getJoinRequests(String teamId) async {
-    try {
-      final response = await client.get('/join-requests/team/$teamId');
-
-      if (response is List) {
-        return response
-            .map(
-              (json) => JoinRequestModel.fromJson(json as Map<String, dynamic>),
-            )
-            .toList();
-      }
-
-      return [];
-    } catch (e) {
-      debugPrint('🔴 TeamRemoteDataSource: Error getting join requests: $e');
-      rethrow;
-    }
-  }
-
-  @override
   Future<JoinRequestModel> handleJoinRequest({
     required String teamId,
     required String requestId,
@@ -486,14 +466,37 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
     String? message,
   }) async {
     try {
-      final response = await client.put(
-        '/join-requests/$requestId/team/$teamId',
-        data: {'approved': approved, if (message != null) 'message': message},
+      log(
+        '🟡 TeamRemoteDataSource: Handling join request $requestId for team $teamId (approved: $approved)',
       );
 
-      return JoinRequestModel.fromJson(response as Map<String, dynamic>);
-    } catch (e) {
-      debugPrint('🔴 TeamRemoteDataSource: Error handling join request: $e');
+      // Based on your backend routes, you need to determine the correct endpoint
+      // Option 1: If using the generic endpoint
+      final response = await client.put<Map<String, dynamic>>(
+        '/join-requests/$requestId', // Generic endpoint with body
+        data: {'approved': approved, if (message != null) 'message': message},
+        requiresAuth: true,
+      );
+
+      log(
+        '🟡 TeamRemoteDataSource: Handle join request response - Status: ${response.statusCode}',
+      );
+
+      if (response.isSuccess && response.data != null) {
+        log('🟢 TeamRemoteDataSource: Join request handled successfully');
+        return JoinRequestModel.fromJson(response.data!);
+      } else {
+        log(
+          '🔴 TeamRemoteDataSource: Failed to handle join request - Status: ${response.statusCode}, Message: ${response.message}',
+        );
+        throw ServerException(
+          response.message ??
+              'Failed to handle join request: ${response.statusCode}',
+        );
+      }
+    } catch (e, stackTrace) {
+      log('🔴 TeamRemoteDataSource: Error handling join request - $e');
+      log('🔴 Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -501,17 +504,46 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   @override
   Future<void> cancelJoinRequest(String requestId) async {
     try {
-      await client.delete('/join-requests/$requestId');
-    } catch (e) {
-      debugPrint('🔴 TeamRemoteDataSource: Error cancelling join request: $e');
+      log(
+        '🟡 TeamRemoteDataSource: Cancelling join request - requestId: $requestId',
+      );
+
+      final response = await client.delete(
+        '/join-requests/$requestId',
+        requiresAuth: true,
+      );
+
+      log(
+        '🟡 TeamRemoteDataSource: Cancel join request response - Status: ${response.statusCode}',
+      );
+
+      if (response.isSuccess) {
+        log('🟢 TeamRemoteDataSource: Join request cancelled successfully');
+      } else {
+        log(
+          '🔴 TeamRemoteDataSource: Failed to cancel join request - Status: ${response.statusCode}, Message: ${response.message}',
+        );
+        throw ServerException(
+          response.message ??
+              'Failed to cancel join request: ${response.statusCode}',
+        );
+      }
+    } on ServerException {
       rethrow;
+    } catch (e, stackTrace) {
+      log('🔴 TeamRemoteDataSource: Cancel join request network error - $e');
+      log('🔴 Stack trace: $stackTrace');
+      throw ServerException('Network error: $e');
     }
   }
 
   @override
   Future<List<JoinRequestModel>> getMyPendingRequests() async {
     try {
-      final response = await client.get('/join-requests/my-requests');
+      final response = await client.get(
+        '/join-requests/my-requests',
+        requiresAuth: true,
+      );
 
       if (response is List) {
         return response
@@ -531,23 +563,40 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   }
 
   @override
-  Future<List<JoinRequestModel>> getTeamJoinRequests(String teamId) async {
+  Future<List<JoinRequestModel>> getJoinRequests(String teamId) async {
     try {
-      log('🟡 TeamRemoteDataSource: Fetching join requests for team: $teamId');
+      debugPrint(
+        '🟡 TeamRemoteDataSource: Fetching join requests for team: $teamId',
+      );
 
-      final response = await client.get(
+      final response = await client.get<dynamic>(
+        // Changed from <List<dynamic>>
         '/join-requests/team/$teamId',
-        requiresAuth: true,
+        requiresAuth: true, // ✅ ADD THIS
       );
 
-      log(
-        '🟡 TeamRemoteDataSource: Join requests response - Status: ${response.statusCode}',
+      debugPrint(
+        '🟡 TeamRemoteDataSource: Response status: ${response.statusCode}',
       );
+      debugPrint(
+        '🟡 TeamRemoteDataSource: Response data type: ${response.data.runtimeType}',
+      );
+      debugPrint('🟡 TeamRemoteDataSource: Response data: ${response.data}');
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> requestsList = response.data is List
-            ? response.data
-            : (response.data['data'] ?? []);
+        // Handle both List and Map responses
+        List<dynamic> requestsList;
+        if (response.data is List) {
+          requestsList = response.data as List<dynamic>;
+        } else if (response.data is Map) {
+          requestsList = (response.data as Map)['data'] ?? [];
+        } else {
+          requestsList = [];
+        }
+
+        debugPrint(
+          '🟢 TeamRemoteDataSource: Found ${requestsList.length} requests',
+        );
 
         final requests = requestsList
             .map(
@@ -555,15 +604,15 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
             )
             .toList();
 
-        log('🟢 TeamRemoteDataSource: Found ${requests.length} join requests');
         return requests;
       } else {
         throw ServerException(
           response.message ?? 'Failed to fetch join requests',
         );
       }
-    } catch (e) {
-      log('🔴 TeamRemoteDataSource: Error fetching join requests - $e');
+    } catch (e, stackTrace) {
+      debugPrint('🔴 TeamRemoteDataSource: Error fetching join requests - $e');
+      debugPrint('🔴 Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -579,8 +628,22 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
         '🟡 TeamRemoteDataSource: $action join request - requestId: $requestId',
       );
 
+      // CHANGE THIS LINE:
+      // Old: '/join-requests/$requestId/$action'
+      // New: '/join-requests/$action/$requestId'
+      final String endpoint;
+      if (action == 'approve') {
+        endpoint = '/join-requests/approve/$requestId';
+      } else if (action == 'reject') {
+        endpoint = '/join-requests/reject/$requestId';
+      } else {
+        throw ServerException(
+          'Invalid action: $action. Must be "approve" or "reject"',
+        );
+      }
+
       final response = await client.put(
-        '/join-requests/$requestId/$action',
+        endpoint, // Use the new endpoint structure
         data: {if (message != null) 'message': message},
         requiresAuth: true,
       );

@@ -34,8 +34,9 @@ abstract class TeamRepository {
   Future<Either<Failure, List<JoinRequestEntity>>> getTeamJoinRequests(
     String teamId,
   );
-  Future<Either<Failure, bool>> approveOrRejectJoinRequest(
-    String requestId,
-    String action,
-  );
+  Future<Either<Failure, bool>> approveOrRejectJoinRequest({
+    required String requestId,
+    required String action,
+    String? message,
+  });
 }

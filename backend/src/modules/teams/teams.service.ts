@@ -11,6 +11,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Team, TeamDocument } from './schemas/team.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { JoinRequest, JoinRequestDocument, JoinRequestStatus } from './schemas/join-request.schema'; // Added import
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
@@ -34,6 +35,7 @@ interface TeamResponse {
 @Injectable()
 export class TeamsService {
   private readonly logger = new Logger(TeamsService.name);
+  joinRequestModel: any;
 
   constructor(
     @InjectModel(Team.name) private teamModel: Model<TeamDocument>,
@@ -211,47 +213,10 @@ export class TeamsService {
     }
   }
 
-  async joinTeam(teamId: string, userId: string): Promise<Team> { // CHANGED: inviteCode → teamId
-    try {
-      if (!Types.ObjectId.isValid(teamId)) {
-        throw new BadRequestException('Invalid team ID');
-      }
-
-      const team = await this.teamModel.findById(teamId); // CHANGED: Find by ID
-      if (!team) {
-        throw new NotFoundException('Team not found');
-      }
-
-      // Check if user is already a member
-      const isAlreadyMember = team.members.some(member => 
-        this.getUserId(member.user) === userId
-      );
-      if (isAlreadyMember) {
-        throw new BadRequestException('You are already a member of this team');
-      }
-
-      // Add user to members
-      team.members.push({
-        user: new Types.ObjectId(userId),
-        joinedAt: new Date(),
-      });
-
-      team.lastActivity = new Date();
-      const updatedTeam = await team.save();
-      
-      this.logger.log(`User ${userId} joined team ${team._id} using team ID`);
-      return updatedTeam;
-    } catch (error) {
-      this.logger.error(`Failed to join team ${teamId}: ${error.message}`);
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Failed to join team');
-    }
+  async requestToJoinTeam(teamId: string, userId: string): Promise<any> {
+    // This method is now handled by JoinRequestsService
+    throw new BadRequestException('Use join-requests endpoint to request joining a team');
   }
-
-  // Remove inviteMember and regenerateInviteCode methods since we don't need them anymore
-  // Remove the generateInviteCode method
 
   async getUserTeams(userId: string): Promise<Team[]> {
     try {
@@ -356,21 +321,36 @@ export class TeamsService {
       .sort({ lastActivity: -1 })
       .exec();
 
-    return teams.map(team => ({
-      id: team._id.toString(),
-      name: team.name,
-      description: team.description,
-      logoUrl: team.logoUrl,
-      memberCount: team.members.length,
-      createdAt: (team as any).createdAt,
-      lastActivity: team.lastActivity,
-      owner: {
-        id: this.getUserId(team.owner),
-        name: (team.owner as any).name,
-        email: (team.owner as any).email,
-      },
-      isMember: false,
-    }));
+    // Check for pending join requests for each team
+    const teamsWithRequestStatus = await Promise.all(
+      teams.map(async (team) => {
+        const joinRequest = await this.joinRequestModel.findOne({
+          team: team._id,
+          user: new Types.ObjectId(userId),
+          status: JoinRequestStatus.PENDING,
+        });
+
+        return {
+          id: team._id.toString(),
+          name: team.name,
+          description: team.description,
+          logoUrl: team.logoUrl,
+          memberCount: team.members.length,
+          maxMembers: team.maxMembers || 4,
+          createdAt: (team as any).createdAt,
+          lastActivity: team.lastActivity,
+          owner: {
+            id: this.getUserId(team.owner),
+            name: (team.owner as any).name,
+            email: (team.owner as any).email,
+          },
+          isMember: false,
+          hasPendingRequest: !!joinRequest,
+        };
+      })
+    );
+
+    return teamsWithRequestStatus;
   } catch (error) {
     this.logger.error(`Failed to fetch browse teams for user ${userId}: ${error.message}`);
     if (error instanceof BadRequestException) {
@@ -464,4 +444,43 @@ async searchTeamsExceptUser(userId: string, query: string): Promise<Team[]> {
   }
 }
 
+async leaveTeam(teamId: string, userId: string): Promise<void> {
+  try {
+    if (!Types.ObjectId.isValid(teamId)) {
+      throw new BadRequestException('Invalid team ID');
+    }
+
+    const team = await this.teamModel.findById(teamId);
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // Check if user is a member
+    const isMember = this.isUserMember(team, userId);
+    if (!isMember) {
+      throw new BadRequestException('You are not a member of this team');
+    }
+
+    // Check if user is the owner (owners can't leave, they must delete or transfer ownership)
+    if (this.isUserOwner(team, userId)) {
+      throw new BadRequestException('Team owner cannot leave the team. Please transfer ownership or delete the team.');
+    }
+
+    // Remove user from members
+    team.members = team.members.filter(member => 
+      this.getUserId(member.user) !== userId
+    );
+
+    team.lastActivity = new Date();
+    await team.save();
+    
+    this.logger.log(`User ${userId} left team ${team._id}`);
+  } catch (error) {
+    this.logger.error(`Failed to leave team ${teamId}: ${error.message}`);
+    if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new InternalServerErrorException('Failed to leave team');
+  }
+ }
 }

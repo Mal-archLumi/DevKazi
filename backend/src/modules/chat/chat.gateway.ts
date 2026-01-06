@@ -274,34 +274,44 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   @UseGuards(WebSocketJwtAuthGuard)
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() { teamId, content }: { teamId: string; content: string },
+    @MessageBody() data: { teamId: string; content: string; replyToId?: string }, // UPDATE: Add replyToId
   ) {
     try {
       const user = client.data.user!;
 
-      if (!content?.trim()) {
+      if (!data.content?.trim()) {
         client.emit('error', { message: 'Message content cannot be empty' });
         return;
       }
 
-      if (!teamId) {
+      if (!data.teamId) {
         client.emit('error', { message: 'Team ID is required' });
         return;
       }
 
       // Check if user is in the team room
       const rooms = Array.from(client.rooms);
-      if (!rooms.includes(teamId)) {
+      if (!rooms.includes(data.teamId)) {
         client.emit('error', { message: 'You are not a member of this team' });
         return;
       }
 
-      this.logger.log(`💬 Sending message in team ${teamId} by user ${user.userId}`);
+      this.logger.log(`💬 Sending message in team ${data.teamId} by user ${user.userId}${data.replyToId ? ` (reply to: ${data.replyToId})` : ''}`);
+
+      // If replying to a message, verify it exists
+      if (data.replyToId) {
+        const repliedMessage = await this.chatService.getMessageById(data.replyToId);
+        if (!repliedMessage) {
+          client.emit('error', { message: 'Replied message not found' });
+          return;
+        }
+      }
 
       const saved = await this.chatService.saveMessage({
-        teamId,
+        teamId: data.teamId,
         senderId: user.userId,
-        content: content.trim(),
+        content: data.content.trim(),
+        replyToId: data.replyToId, // ADD THIS
       });
 
       const message = {
@@ -311,17 +321,18 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         senderName: user.name || 'User',
         content: saved.content,
         timestamp: saved.timestamp || new Date(),
+        replyToId: saved.replyTo?.toString(), // ADD THIS
       };
 
       // Broadcast to all in the team room including sender
-      this.server.to(teamId).emit('new_message', message);
+      this.server.to(data.teamId).emit('new_message', message);
       
       client.emit('message_sent', { 
         success: true, 
         messageId: message.id 
       });
       
-      this.logger.log(`✅ Message sent successfully in team ${teamId}`);
+      this.logger.log(`✅ Message sent successfully in team ${data.teamId}`);
 
     } catch (error: any) {
       this.logger.error(`❌ Send message error: ${error.message}`);
@@ -494,5 +505,77 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       joinedRooms: rooms.filter(room => room !== client.id), // Exclude private room
       timestamp: new Date().toISOString()
     });
+  }
+ @SubscribeMessage('delete_messages')
+  async handleDeleteMessages(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { teamId: string; messageIds: string[] },
+  ) {
+    try {
+      const user = client.data.user;
+      if (!user) {
+        this.logger.error('❌ No user data found in socket');
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      const userId = user.userId || user.sub || user._id;
+      this.logger.log(
+        `🗑️ DELETE REQUEST: User ${userId} deleting ${data.messageIds.length} messages in team ${data.teamId}`,
+      );
+
+      // Get messages to verify ownership
+      const messages = await this.chatService.getMessagesByIds(data.messageIds);
+      
+      this.logger.log(`📋 Found ${messages.length} messages to check`);
+      
+      // Log each message's sender for debugging
+      messages.forEach((msg, index) => {
+        const senderId = msg.sender?._id?.toString() || msg.sender?.toString();
+        this.logger.log(`  Message ${index + 1}: sender=${senderId}, userId=${userId}, match=${senderId === userId}`);
+      });
+
+      // Filter to only messages owned by this user
+      const ownedMessages = messages.filter((msg) => {
+        const senderId = msg.sender?._id?.toString() || msg.sender?.toString();
+        return senderId === userId;
+      });
+
+      const ownedMessageIds = ownedMessages.map((msg) => msg._id.toString());
+      const notOwnedIds = data.messageIds.filter((id) => !ownedMessageIds.includes(id));
+
+      this.logger.log(`✅ Owned: ${ownedMessageIds.length}, Not owned: ${notOwnedIds.length}`);
+
+      if (ownedMessageIds.length === 0) {
+        this.logger.error(`❌ User ${userId} tried to delete messages they don't own`);
+        return { 
+          success: false, 
+          error: 'You can only delete your own messages',
+          notOwned: notOwnedIds,
+        };
+      }
+
+      // Delete only owned messages
+      const result = await this.chatService.deleteMessages(ownedMessageIds);
+
+      if (result.deletedCount > 0) {
+        // Emit to all clients in the team room
+        this.server.to(`team:${data.teamId}`).emit('messages_deleted', {
+          messageIds: ownedMessageIds,
+          deletedBy: userId,
+          teamId: data.teamId,
+        });
+
+        this.logger.log(`✅ Successfully deleted ${result.deletedCount} messages`);
+      }
+
+      return {
+        success: true,
+        deletedCount: result.deletedCount,
+        notOwned: notOwnedIds,
+      };
+    } catch (error) {
+      this.logger.error(`❌ Error deleting messages: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   }
 }

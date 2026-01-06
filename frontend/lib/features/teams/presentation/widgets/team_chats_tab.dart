@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Add this import for Clipboard
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
-import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
 import 'package:frontend/features/chat/domain/entities/message_entity.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_state.dart';
 import 'package:frontend/core/injection_container.dart' as di;
 import 'package:frontend/features/chat/presentation/widgets/message_bubble.dart';
-// Assuming MessageBubble is defined elsewhere or add it here if needed
-// import 'path/to/message_bubble.dart'; // Add if MessageBubble is in a separate file
+import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
 
 class TeamChatsTab extends StatefulWidget {
   final String teamId;
   final String accessToken;
+  final UserEntity currentUser;
 
   const TeamChatsTab({
     super.key,
     required this.teamId,
     required this.accessToken,
+    required this.currentUser,
   });
 
   @override
@@ -26,49 +26,79 @@ class TeamChatsTab extends StatefulWidget {
 }
 
 class _TeamChatsTabState extends State<TeamChatsTab> {
-  UserEntity? _currentUser;
-  bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _hasText = false;
   late ChatCubit _chatCubit;
-  String? _previousTeamId;
+
+  // Track if we've scrolled to bottom
+  bool _isAtBottom = true;
+
+  // Track last team to prevent duplicate connections
+  String? _lastConnectedTeamId;
+
+  // Track if we should scroll to bottom on initial load
+  bool _isInitialLoad = true;
 
   @override
   void initState() {
     super.initState();
     _messageController.addListener(_onTextChanged);
     _chatCubit = di.getIt<ChatCubit>();
+
+    // Listen to scroll position
+    _scrollController.addListener(_scrollListener);
+
+    // Initialize chat connection
     _initializeChat();
+  }
+
+  void _initializeChat() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _connectToChat();
+    });
+  }
+
+  void _connectToChat() {
+    if (_lastConnectedTeamId != widget.teamId) {
+      debugPrint('🔄 TeamChatsTab: Connecting to team ${widget.teamId}');
+      _chatCubit.connectToChat(
+        widget.teamId,
+        widget.accessToken,
+        widget.currentUser,
+      );
+      _lastConnectedTeamId = widget.teamId;
+
+      // Mark as initial load to scroll to bottom when messages arrive
+      _isInitialLoad = true;
+    }
   }
 
   @override
   void didUpdateWidget(TeamChatsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     // Handle team switch
     if (oldWidget.teamId != widget.teamId) {
-      _handleTeamSwitch(oldWidget.teamId);
+      debugPrint(
+        '🔄 TeamChatsTab: Team changed from ${oldWidget.teamId} to ${widget.teamId}',
+      );
+
+      // Clear text input
+      _messageController.clear();
+
+      // Connect to new team
+      _connectToChat();
     }
   }
 
-  void _handleTeamSwitch(String oldTeamId) {
-    print('🔄 Switching from team $oldTeamId to ${widget.teamId}');
-    _previousTeamId = oldTeamId;
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
 
-    // Clear messages immediately to prevent glitch
-    _chatCubit.clearMessages();
-
-    // Set loading state
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Disconnect from old team and connect to new one
-    _chatCubit.disconnectFromChat().then((_) {
-      if (mounted) {
-        _initializeChat();
-      }
-    });
+    // Check if we're at the bottom
+    final threshold = 100.0;
+    final position = _scrollController.position;
+    _isAtBottom = position.pixels >= position.maxScrollExtent - threshold;
   }
 
   void _onTextChanged() {
@@ -78,45 +108,18 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     });
   }
 
-  Future<void> _initializeChat() async {
-    try {
-      final authRepository = di.getIt<AuthRepository>();
-      final userResult = await authRepository.getCurrentUser();
-
-      if (!mounted) return;
-
-      userResult.fold(
-        (failure) {
-          print('❌ Failed to get current user: $failure');
-          if (!mounted) return;
-          setState(() {
-            _isLoading = false;
-          });
-        },
-        (user) {
-          if (!mounted) return;
-          setState(() {
-            _currentUser = user;
-            _isLoading = false;
-          });
-
-          _chatCubit.connectToChat(widget.teamId, widget.accessToken, user);
-        },
-      );
-    } catch (e) {
-      print('❌ Error initializing chat: $e');
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
-    }
+  Future<void> _onRefresh() async {
+    debugPrint('🔄 Refreshing chat for team ${widget.teamId}');
+    _chatCubit.loadMessages(widget.teamId);
+    await Future.delayed(const Duration(milliseconds: 500));
   }
 
   void _scrollToBottom({bool animate = true}) {
     if (!_scrollController.hasClients) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (_scrollController.hasClients &&
+          _scrollController.position.maxScrollExtent > 0) {
         if (animate) {
           _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
@@ -126,6 +129,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
         } else {
           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
         }
+        _isAtBottom = true;
       }
     });
   }
@@ -148,62 +152,83 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   }
 
   void _handleMessageTap(String messageId) {
-    final cubit = BlocProvider.of<ChatCubit>(context);
-
-    if (cubit.state.isSelectionMode) {
-      cubit.toggleMessageSelection(messageId);
+    if (_chatCubit.state.isSelectionMode) {
+      _chatCubit.toggleMessageSelection(messageId);
     }
   }
 
   void _handleMessageLongPress(String messageId) {
-    final cubit = BlocProvider.of<ChatCubit>(context);
-    cubit.toggleMessageSelection(messageId);
-
-    // Show context menu
+    _chatCubit.toggleMessageSelection(messageId);
     _showMessageContextMenu(messageId);
   }
 
   void _showMessageContextMenu(String messageId) {
-    final cubit = BlocProvider.of<ChatCubit>(context);
-    final message = cubit.state.messages.firstWhere(
+    final message = _chatCubit.state.messages.firstWhere(
       (msg) => msg.id == messageId,
       orElse: () => throw Exception('Message not found'),
     );
 
+    final isOwnMessage = message.senderId == widget.currentUser.id;
+
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (bottomSheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 32,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
             ListTile(
               leading: const Icon(Icons.reply),
               title: const Text('Reply'),
               onTap: () {
-                Navigator.pop(context);
-                cubit.setReplyingTo(message);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete'),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteConfirmation([messageId]);
+                Navigator.pop(bottomSheetContext);
+                _chatCubit.setReplyingTo(message);
               },
             ),
             ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('Copy Text'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(bottomSheetContext);
                 _copyToClipboard(message.content);
+                _chatCubit.clearSelection();
               },
             ),
+            if (isOwnMessage)
+              ListTile(
+                leading: Icon(
+                  Icons.delete,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  'Delete',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _chatCubit.toggleMessageSelection(messageId);
+                  _showDeleteConfirmation([messageId]);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.cancel),
               title: const Text('Cancel'),
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                Navigator.pop(bottomSheetContext);
+                _chatCubit.clearSelection();
+              },
             ),
           ],
         ),
@@ -214,7 +239,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   void _showDeleteConfirmation(List<String> messageIds) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Message'),
         content: Text(
           messageIds.length == 1
@@ -223,14 +248,13 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
-              final cubit = BlocProvider.of<ChatCubit>(context);
-              cubit.deleteSelectedMessages(widget.teamId);
+              Navigator.pop(dialogContext);
+              _chatCubit.deleteSelectedMessages(widget.teamId);
             },
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.error,
@@ -249,7 +273,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     ).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
   }
 
-  Widget _buildActionAppBar(ChatState state, ChatCubit cubit) {
+  Widget _buildActionAppBar(ChatState state) {
     if (!state.isSelectionMode) return const SizedBox.shrink();
 
     return Container(
@@ -273,8 +297,8 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                 final message = state.messages.firstWhere(
                   (msg) => msg.id == messageId,
                 );
-                cubit.setReplyingTo(message);
-                cubit.clearSelection();
+                _chatCubit.setReplyingTo(message);
+                _chatCubit.clearSelection();
               },
             ),
           IconButton(
@@ -284,14 +308,14 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
           ),
           IconButton(
             icon: const Icon(Icons.close),
-            onPressed: cubit.clearSelection,
+            onPressed: _chatCubit.clearSelection,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildReplyPreview(ChatState state, ChatCubit cubit) {
+  Widget _buildReplyPreview(ChatState state) {
     if (state.replyingTo == null) return const SizedBox.shrink();
 
     return Container(
@@ -334,52 +358,99 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            iconSize: 20,
-            onPressed: () => cubit.setReplyingTo(null),
+          GestureDetector(
+            onTap: () {
+              debugPrint('🔴 Cancel reply tapped');
+              _chatCubit.setReplyingTo(null);
+            },
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.close,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No messages yet',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start a conversation!',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Pull down to refresh',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageList(ChatState state) {
+    return ListView.builder(
+      controller: _scrollController,
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: state.messages.length,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemBuilder: (context, index) {
+        final message = state.messages[index];
+        final isCurrentUser = message.senderId == widget.currentUser.id;
+
+        MessageEntity? replyToMessage;
+        if (message.replyToId != null) {
+          replyToMessage = state.messages.cast<MessageEntity?>().firstWhere(
+            (msg) => msg?.id == message.replyToId,
+            orElse: () => null,
+          );
+        }
+
+        return MessageBubble(
+          message: message,
+          isCurrentUser: isCurrentUser,
+          context: context,
+          isSelected: state.isMessageSelected(message.id),
+          isSelectionMode: state.isSelectionMode,
+          replyToMessage: replyToMessage,
+          onTap: () => _handleMessageTap(message.id),
+          onLongPress: () => _handleMessageLongPress(message.id),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_currentUser == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Unable to load user data',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Please check your authentication',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _initializeChat,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
     return BlocProvider.value(
       value: _chatCubit,
       child: BlocConsumer<ChatCubit, ChatState>(
@@ -394,13 +465,31 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
             );
           }
 
-          // Auto-scroll when messages are loaded or received
-          if (state.status == ChatStatus.loaded && state.messages.isNotEmpty) {
-            _scrollToBottom(animate: false);
+          // ✅ KEY FIX: Scroll to bottom when messages are first loaded
+          if (_isInitialLoad &&
+              state.status == ChatStatus.loaded &&
+              state.messages.isNotEmpty) {
+            _isInitialLoad = false;
+            // Use a longer delay to ensure ListView is fully built
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                _scrollToBottom(animate: false);
+              }
+            });
+          }
+
+          // Also scroll when user is at bottom and new message arrives
+          if (_isAtBottom &&
+              state.status == ChatStatus.loaded &&
+              state.messages.isNotEmpty) {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted && _isAtBottom) {
+                _scrollToBottom(animate: true);
+              }
+            });
           }
         },
         builder: (context, state) {
-          final cubit = BlocProvider.of<ChatCubit>(context);
           final isConnected = state.isConnected;
 
           if (state.status == ChatStatus.connecting ||
@@ -410,10 +499,9 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
 
           return Column(
             children: [
-              // Action App Bar for selection mode
-              _buildActionAppBar(state, cubit),
+              _buildActionAppBar(state),
 
-              // Connection status indicator
+              // Connection status
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -436,73 +524,42 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                         color: isConnected ? Colors.green : Colors.red,
                       ),
                     ),
+                    if (!isConnected) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _onRefresh,
+                        child: Text(
+                          '• Tap to reconnect',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
 
-              // Chat messages
+              // Messages
               Expanded(
-                child: state.messages.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.chat_bubble_outline,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'No messages yet',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            Text(
-                              'Start a conversation!',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        itemCount: state.messages.length,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemBuilder: (context, index) {
-                          final message = state.messages[index];
-                          final isCurrentUser =
-                              message.senderId == _currentUser!.id;
-
-                          // Find reply message if this is a reply
-                          MessageEntity? replyToMessage;
-                          if (message.replyToId != null) {
-                            replyToMessage = state.messages
-                                .cast<MessageEntity?>()
-                                .firstWhere(
-                                  (msg) => msg?.id == message.replyToId,
-                                  orElse: () => null,
-                                );
-                          }
-
-                          return MessageBubble(
-                            message: message,
-                            isCurrentUser: isCurrentUser,
-                            context: context,
-                            isSelected: state.isMessageSelected(message.id),
-                            isSelectionMode: state.isSelectionMode,
-                            replyToMessage: replyToMessage,
-                            onTap: () => _handleMessageTap(message.id),
-                            onLongPress: () =>
-                                _handleMessageLongPress(message.id),
-                          );
-                        },
-                      ),
+                child: RefreshIndicator(
+                  onRefresh: _onRefresh,
+                  color: Theme.of(context).colorScheme.primary,
+                  child: state.messages.isEmpty
+                      ? SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: _buildEmptyState(),
+                          ),
+                        )
+                      : _buildMessageList(state),
+                ),
               ),
 
-              // Message input field (updated to handle replies)
+              // Input
               Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
@@ -516,8 +573,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                 ),
                 child: Column(
                   children: [
-                    // Reply preview in input area
-                    _buildReplyPreview(state, cubit),
+                    _buildReplyPreview(state),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Row(
@@ -539,7 +595,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                               ),
                               maxLines: null,
                               textCapitalization: TextCapitalization.sentences,
-                              onSubmitted: (value) => _sendMessage(cubit),
+                              onSubmitted: (value) => _sendMessage(_chatCubit),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -554,7 +610,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
                               icon: const Icon(Icons.send),
                               color: _hasText ? Colors.white : Colors.white70,
                               onPressed: _hasText
-                                  ? () => _sendMessage(cubit)
+                                  ? () => _sendMessage(_chatCubit)
                                   : null,
                             ),
                           ),
@@ -575,10 +631,8 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   void dispose() {
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
+    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
   }
 }
-
-// Note: MessageBubble widget needs to be defined. Assuming it's implemented separately.
-// If not, you can replace the MessageBubble usage with the original inline Container code, but updated for selection and reply display.

@@ -1,4 +1,4 @@
-// src/app.module.ts
+// app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -7,28 +7,28 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
-// Import modules
+// Import modules IN THIS ORDER
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { TeamsModule } from './modules/teams/teams.module';
+import { JoinRequestsModule } from './modules/teams/join-requests/join-requests.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 // Import app controller and service
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
 import { JwtStrategy } from './auth/strategies/jwt.strategy';
-import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy'; // NEW
+import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy';
 
 @Module({
   imports: [
-    // Configuration module
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
     
-    // JWT module using ConfigService
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -38,39 +38,35 @@ import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy';
       inject: [ConfigService],
     }),
     
-    // Passport module for JWT
     PassportModule.register({ defaultStrategy: 'jwt' }),
     
-    // Enhanced Rate limiting with multiple rules
     ThrottlerModule.forRoot([
       {
         name: 'auth',
-        ttl: 60000, // 1 minute
-        limit: 10, // 10 requests per minute for auth
+        ttl: 60000,
+        limit: 10,
       },
       {
         name: 'api',
-        ttl: 60000, // 1 minute
-        limit: 100, // 100 requests per minute for general API
+        ttl: 60000,
+        limit: 100,
       },
       {
         name: 'strict',
-        ttl: 60000, // 1 minute
-        limit: 5, // 5 requests per minute for sensitive endpoints
+        ttl: 60000,
+        limit: 5,
       }
     ]),
     
-    // MongoDB connection
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const uri = configService.get<string>('MONGODB_URI') || 'mongodb://localhost:27017/devkazi';
-        
-        console.log('🔧 Attempting MongoDB connection to Atlas...');
+        console.log('🔧 Attempting MongoDB connection...');
         
         return {
           uri,
-          serverSelectionTimeoutMS: 30000, // 30 seconds
+          serverSelectionTimeoutMS: 30000,
           socketTimeoutMS: 45000,
           connectTimeoutMS: 30000,
           maxPoolSize: 10,
@@ -85,17 +81,31 @@ import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy';
     AuthModule,
     UsersModule,
     TeamsModule,
+    JoinRequestsModule, // ✅ Ensure this is here
     ChatModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     JwtStrategy,
-    WebSocketJwtStrategy, // NEW - Add WebSocket strategy at app level
+    WebSocketJwtStrategy,
     {
       provide: APP_GUARD,
       useClass: CustomThrottlerGuard,
     },
   ],
 })
-export class AppModule {}
+export class AppModule {
+  constructor() {
+    console.log('🟢 AppModule initialized');
+    console.log('📋 Modules loaded:', [
+      'AuthModule',
+      'UsersModule', 
+      'TeamsModule',
+      'JoinRequestsModule',
+      'ChatModule',
+      'ProjectsModule'
+    ]);
+  }
+}

@@ -1,4 +1,4 @@
-// team.schema.ts
+// team.schema.ts (updated)
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
@@ -38,6 +38,16 @@ export class Team {
 
   @Prop({ default: Date.now })
   lastActivity: Date;
+
+  // ADD THIS: Maximum members limit
+  @Prop({ default: 4, min: 2, max: 10 })
+  maxMembers: number;
+
+  // ADD THIS: Team visibility
+  @Prop({ default: 'public', enum: ['public', 'private'] })
+  visibility: string;
+  creatorId: any;
+  createdBy: any;
 }
 
 export const TeamSchema = SchemaFactory.createForClass(Team);
@@ -46,3 +56,4 @@ export const TeamSchema = SchemaFactory.createForClass(Team);
 TeamSchema.index({ 'members.user': 1 });
 TeamSchema.index({ lastActivity: -1 });
 TeamSchema.index({ owner: 1 });
+TeamSchema.index({ visibility: 1 });

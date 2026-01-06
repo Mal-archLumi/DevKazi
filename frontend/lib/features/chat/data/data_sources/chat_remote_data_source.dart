@@ -15,13 +15,10 @@ abstract class ChatRemoteDataSource {
   Future<void> connect(String teamId, String token);
   Future<void> disconnect();
   Future<void> sendMessage(String teamId, String content, {String? replyToId});
-  Future<List<MessageModel>> getTeamMessages(String teamId);
-
+  Future<List<MessageModel>> getTeamMessages(String teamId, {String? token});
   bool get isConnected;
   String? get currentTeamId;
   void emit(String event, dynamic data);
-
-  // FIX: Remove async and implementation from abstract class
   Future<void> deleteMessages(String teamId, List<String> messageIds);
 }
 
@@ -31,8 +28,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       StreamController<MessageModel>.broadcast();
   final StreamController<void> _connectedStreamController =
       StreamController<void>.broadcast();
-  final StreamController<Map<String, dynamic>>
-  _userStatusStreamController = // ADD THIS
+  final StreamController<Map<String, dynamic>> _userStatusStreamController =
       StreamController<Map<String, dynamic>>.broadcast();
 
   final String _baseUrl;
@@ -51,11 +47,21 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           dotenv.env['API_URL']?.replaceFirst('/api/v1', '') ??
           'https://fattiest-ebony-supplely.ngrok-free.dev' {
     // Cleanup old message IDs every 5 minutes
-    _messageCleanupTimer = Timer.periodic(Duration(minutes: 5), (_) {
+    _messageCleanupTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (_processedMessageIds.length > 1000) {
         _processedMessageIds.clear();
       }
     });
+  }
+
+  Future<String?> _getAuthToken() async {
+    try {
+      final authRepository = GetIt.I<AuthRepository>();
+      return await authRepository.getAccessToken();
+    } catch (e) {
+      print('❌ Error getting auth token: $e');
+      return null;
+    }
   }
 
   void _setupSocketListeners() {
@@ -71,8 +77,8 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     _socket!.off('connect_error');
     _socket!.off('authentication_error');
     _socket!.off('message_sent');
-    _socket!.off('userStatus'); // ADD THIS
-    _socket!.off('messages_deleted'); // ADD THIS
+    _socket!.off('userStatus');
+    _socket!.off('messages_deleted');
 
     _socket!.onConnect((_) {
       if (_isDisposed) return;
@@ -99,7 +105,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           reason != 'io client disconnect') {
         print('🔄 Scheduling reconnect in 3 seconds...');
         _reconnectTimer?.cancel();
-        _reconnectTimer = Timer(Duration(seconds: 3), () {
+        _reconnectTimer = Timer(const Duration(seconds: 3), () {
           if (!_isDisposed && _currentTeamId != null && _currentToken != null) {
             print('🔄 Auto-reconnecting to team: $_currentTeamId');
             connect(_currentTeamId!, _currentToken!);
@@ -122,6 +128,12 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         print('📨 Received new message for team $_currentTeamId: $data');
         final message = MessageModel.fromJson(data);
 
+        // CRITICAL: Only process messages for current team
+        if (message.teamId != _currentTeamId) {
+          print('⚠️ Ignoring message from different team: ${message.teamId}');
+          return;
+        }
+
         // Prevent duplicate messages
         final messageId = message.id;
         if (_processedMessageIds.contains(messageId)) {
@@ -136,7 +148,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       }
     });
 
-    // ADD THIS - Listen for user status updates
+    // Listen for user status updates
     _socket!.on('userStatus', (data) {
       if (_isDisposed) return;
 
@@ -149,13 +161,12 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       }
     });
 
-    // ADD THIS - Listen for messages deleted event
+    // Listen for messages deleted event
     _socket!.on('messages_deleted', (data) {
       if (_isDisposed) return;
 
       try {
         print('🗑️ Received messages_deleted event: $data');
-        // This will be handled by the cubit via userStatusStream
         _userStatusStreamController.add({
           'type': 'messages_deleted',
           'messageIds': data['messageIds'],
@@ -222,7 +233,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
 
   @override
   Stream<Map<String, dynamic>> get userStatusStream =>
-      _userStatusStreamController.stream; // ADD THIS
+      _userStatusStreamController.stream;
 
   @override
   bool get isConnected => _socket?.connected ?? false;
@@ -232,7 +243,6 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
 
   @override
   void emit(String event, dynamic data) {
-    // ADD THIS
     if (_isDisposed || _socket == null || !_socket!.connected) {
       print('❌ Cannot emit $event - socket not connected');
       return;
@@ -258,7 +268,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     if (_currentTeamId != null && _currentTeamId != teamId) {
       print('🔄 Switching from team $_currentTeamId to $teamId');
       await disconnect();
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
     _currentTeamId = teamId;
@@ -271,7 +281,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       _socket!.disconnect();
       _socket!.dispose();
       _socket = null;
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
     _connectionCompleter = Completer<void>();
@@ -294,7 +304,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
 
       _setupSocketListeners();
 
-      final timer = Timer(Duration(seconds: 15), () {
+      final timer = Timer(const Duration(seconds: 15), () {
         if (_connectionCompleter != null &&
             !_connectionCompleter!.isCompleted) {
           print('⏰ Connection timeout after 15 seconds');
@@ -317,7 +327,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       _socket!.emit('join_team', {'teamId': teamId});
       print('🚀 Sent join_team request for team: $teamId');
 
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
       print('❌ CONNECTION ERROR: $e');
       _socket?.disconnect();
@@ -400,7 +410,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     );
 
     // Set a reasonable timeout
-    final timer = Timer(Duration(seconds: 10), () {
+    final timer = Timer(const Duration(seconds: 10), () {
       if (!completer.isCompleted) {
         print('⏰ Send message timeout');
         completer.completeError(TimeoutException('Send timeout'));
@@ -419,54 +429,34 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   @override
-  Future<List<MessageModel>> getTeamMessages(String teamId) async {
-    if (_isDisposed) {
-      throw Exception('DataSource has been disposed');
+  Future<List<MessageModel>> getTeamMessages(
+    String teamId, {
+    String? token,
+  }) async {
+    final authToken = token ?? await _getAuthToken();
+
+    if (authToken == null) {
+      throw const ServerFailure('No authentication token found');
     }
 
-    try {
-      final authRepository = GetIt.I<AuthRepository>();
-      final token = await authRepository.getAccessToken();
+    // FIX: Correct the URL to match the backend route
+    // Backend route: /api/v1/chat/teams/:teamId/messages
+    final response = await http.get(
+      Uri.parse('$_baseUrl/api/v1/chat/teams/$teamId/messages'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+    );
 
-      if (token == null) {
-        throw ServerFailure('No authentication token found');
-      }
-
-      final baseUrl = '$_baseUrl/api/v1';
-
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/chat/teams/$teamId/messages'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-          )
-          .timeout(Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => MessageModel.fromJson(json)).toList();
-      } else if (response.statusCode == 404) {
-        return [];
-      } else {
-        throw ServerFailure('Failed to load messages: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('❌ HTTP GET MESSAGES ERROR: $e');
-      rethrow;
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => MessageModel.fromJson(json)).toList();
+    } else if (response.statusCode == 404) {
+      return []; // No messages found
+    } else {
+      throw ServerFailure('Failed to load messages: ${response.statusCode}');
     }
-  }
-
-  void dispose() {
-    _isDisposed = true;
-    _reconnectTimer?.cancel();
-    _messageCleanupTimer?.cancel();
-    _messageStreamController.close();
-    _connectedStreamController.close();
-    _userStatusStreamController.close(); // ADD THIS
-    _socket?.dispose();
-    _processedMessageIds.clear();
   }
 
   @override
@@ -492,7 +482,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     bool ackReceived = false;
 
     // Set timeout BEFORE emitting
-    final timer = Timer(Duration(seconds: 15), () {
+    final timer = Timer(const Duration(seconds: 15), () {
       if (!completer.isCompleted && !ackReceived) {
         print('⏰ Delete messages timeout');
         completer.completeError(
@@ -559,5 +549,16 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       print('❌ Error deleting messages: $e');
       rethrow;
     }
+  }
+
+  void dispose() {
+    _isDisposed = true;
+    _reconnectTimer?.cancel();
+    _messageCleanupTimer?.cancel();
+    _messageStreamController.close();
+    _connectedStreamController.close();
+    _userStatusStreamController.close();
+    _socket?.dispose();
+    _processedMessageIds.clear();
   }
 }

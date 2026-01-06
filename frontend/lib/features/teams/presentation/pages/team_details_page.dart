@@ -32,54 +32,104 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   int _currentTabIndex = 0;
   String? _accessToken;
   String? _currentUserId;
+  UserEntity? _currentUser;
   late JoinRequestsCubit _joinRequestsCubit;
+  bool _isInitialized = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _joinRequestsCubit = di.getIt<JoinRequestsCubit>();
-    context.read<TeamDetailsCubit>().loadTeamWithMembers(widget.team.id);
-    _loadAccessToken();
+    _initializeAll();
   }
 
-  Future<void> _loadAccessToken() async {
+  Future<void> _initializeAll() async {
     try {
+      debugPrint('🟡 TeamDetailsPage: Starting initialization...');
+
+      // Step 1: Get auth token
       final authRepository = di.getIt<AuthRepository>();
       final token = await authRepository.getAccessToken();
 
+      if (token == null) {
+        debugPrint('🔴 TeamDetailsPage: No access token available');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      debugPrint('🟢 TeamDetailsPage: Got access token');
+
+      // Step 2: Get current user
       final userCubit = di.getIt<UserCubit>();
       UserEntity? currentUser;
 
       if (userCubit.state is UserLoaded) {
-        final userState = userCubit.state as UserLoaded;
-        currentUser = userState.user;
+        currentUser = (userCubit.state as UserLoaded).user;
       } else {
         await userCubit.loadCurrentUser();
-        await Future.delayed(const Duration(milliseconds: 100));
+        // Wait for state to update
+        await Future.delayed(const Duration(milliseconds: 200));
 
         if (userCubit.state is UserLoaded) {
-          final userState = userCubit.state as UserLoaded;
-          currentUser = userState.user;
+          currentUser = (userCubit.state as UserLoaded).user;
         }
       }
 
-      _currentUserId = currentUser?.id;
-
-      if (currentUser != null && token != null) {
-        final chatCubit = di.getIt<ChatCubit>();
-        chatCubit.connectToChat(widget.team.id, token, currentUser);
+      if (currentUser == null) {
+        debugPrint('🔴 TeamDetailsPage: Could not get current user');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
       }
 
-      // Load join requests if user is creator
-      if (_currentUserId == widget.team.creatorId) {
+      debugPrint('🟢 TeamDetailsPage: Got current user: ${currentUser.id}');
+
+      // Step 3: Update state with auth info
+      if (mounted) {
+        setState(() {
+          _accessToken = token;
+          _currentUserId = currentUser!.id;
+          _currentUser = currentUser;
+          _isInitialized = true;
+          _isLoading = false;
+        });
+      }
+
+      // Step 4: Load team details
+      if (mounted) {
+        context.read<TeamDetailsCubit>().loadTeamWithMembers(widget.team.id);
+      }
+
+      // Step 5: Connect to chat
+      final chatCubit = di.getIt<ChatCubit>();
+      chatCubit.connectToChat(widget.team.id, token, currentUser);
+
+      // Step 6: Load join requests if user is creator
+      final isCreator = currentUser.id == widget.team.creatorId;
+      debugPrint(
+        '🟡 TeamDetailsPage: Is creator: $isCreator (userId: ${currentUser.id}, creatorId: ${widget.team.creatorId})',
+      );
+
+      if (isCreator) {
+        debugPrint('🟡 TeamDetailsPage: Loading join requests for creator...');
         _joinRequestsCubit.loadJoinRequests(widget.team.id);
       }
-
-      setState(() {
-        _accessToken = token;
-      });
-    } catch (e) {
-      debugPrint('Error loading access token: $e');
+    } catch (e, stackTrace) {
+      debugPrint('🔴 TeamDetailsPage: Error during initialization: $e');
+      debugPrint('🔴 Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -90,6 +140,14 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   void _onTabChanged(int index) {
+    // Validate index based on whether requests tab is visible
+    final isCreator = _currentUserId == widget.team.creatorId;
+    final maxIndex = isCreator ? 3 : 2;
+
+    if (index > maxIndex) {
+      return;
+    }
+
     setState(() {
       _currentTabIndex = index;
     });
@@ -102,23 +160,92 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading while initializing
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.team.name)),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Show error if not initialized
+    if (!_isInitialized || _accessToken == null || _currentUserId == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.team.name)),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(height: 16),
+              const Text('Failed to load authentication'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  _initializeAll();
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return BlocBuilder<TeamDetailsCubit, TeamDetailsState>(
       builder: (context, state) {
-        if (_accessToken == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
         final TeamEntity displayTeam = state.team ?? widget.team;
-        final bool isCreator = displayTeam.creatorId == _currentUserId;
+        final bool isCreator = _currentUserId == displayTeam.creatorId;
+
+        debugPrint(
+          '🔵 TeamDetailsPage Build: isCreator=$isCreator, userId=$_currentUserId, creatorId=${displayTeam.creatorId}',
+        );
 
         return BlocProvider.value(
           value: _joinRequestsCubit,
           child: BlocBuilder<JoinRequestsCubit, JoinRequestsState>(
             bloc: _joinRequestsCubit,
             builder: (context, joinRequestsState) {
-              final pendingCount = joinRequestsState.pendingCount;
+              final pendingCount = isCreator
+                  ? joinRequestsState.pendingCount
+                  : 0;
+
+              // Build the list of tab pages
+              final List<Widget> tabPages = [
+                BlocProvider.value(
+                  value: di.getIt<ChatCubit>(),
+                  child: TeamChatsTab(
+                    teamId: widget.team.id,
+                    accessToken: _accessToken!,
+                    currentUser: _currentUser!,
+                  ),
+                ),
+                BlocProvider(
+                  create: (context) => di.getIt<ProjectsCubit>(),
+                  child: TeamProjectsTab(teamId: widget.team.id),
+                ),
+                const TeamMembersTab(),
+              ];
+
+              // Add requests tab only if creator
+              if (isCreator) {
+                tabPages.add(
+                  BlocProvider.value(
+                    value: _joinRequestsCubit,
+                    child: JoinRequestsPage(
+                      teamId: widget.team.id,
+                      isTeamCreator: true,
+                    ),
+                  ),
+                );
+              }
 
               return Scaffold(
                 appBar: TeamDetailsAppBar(
@@ -139,29 +266,16 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     Expanded(
                       child: PageView(
                         controller: _pageController,
-                        onPageChanged: _onTabChanged,
-                        children: [
-                          BlocProvider.value(
-                            value: di.getIt<ChatCubit>(),
-                            child: TeamChatsTab(
-                              teamId: widget.team.id,
-                              accessToken: _accessToken!,
-                            ),
-                          ),
-                          BlocProvider(
-                            create: (context) => di.getIt<ProjectsCubit>(),
-                            child: TeamProjectsTab(teamId: widget.team.id),
-                          ),
-                          const TeamMembersTab(),
-                          if (isCreator)
-                            BlocProvider.value(
-                              value: _joinRequestsCubit,
-                              child: JoinRequestsPage(
-                                teamId: widget.team.id,
-                                isTeamCreator: true,
-                              ),
-                            ),
-                        ],
+                        onPageChanged: (index) {
+                          // Validate index
+                          final maxIndex = isCreator ? 3 : 2;
+                          if (index <= maxIndex) {
+                            setState(() {
+                              _currentTabIndex = index;
+                            });
+                          }
+                        },
+                        children: tabPages,
                       ),
                     ),
                   ],

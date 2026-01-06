@@ -1,4 +1,5 @@
 // lib/features/chat/presentation/cubits/chat_state.dart
+import 'package:equatable/equatable.dart';
 import 'package:frontend/features/chat/domain/entities/message_entity.dart';
 
 enum ChatStatus {
@@ -7,26 +8,17 @@ enum ChatStatus {
   connected,
   loading,
   loaded,
-  error,
   sending,
-  disconnected,
+  error,
 }
 
-class SelectedMessage {
-  final MessageEntity message;
-  final bool isSelected;
-
-  SelectedMessage({required this.message, this.isSelected = false});
-}
-
-class ChatState {
+class ChatState extends Equatable {
   final ChatStatus status;
   final List<MessageEntity> messages;
   final String? errorMessage;
   final bool isConnected;
-  final int unreadCount;
-  final Set<String> selectedMessageIds;
   final MessageEntity? replyingTo;
+  final Set<String> selectedMessageIds;
   final bool isSelectionMode;
 
   const ChatState({
@@ -34,38 +26,44 @@ class ChatState {
     this.messages = const [],
     this.errorMessage,
     this.isConnected = false,
-    this.unreadCount = 0,
-    this.selectedMessageIds = const {},
     this.replyingTo,
+    this.selectedMessageIds = const {},
     this.isSelectionMode = false,
   });
+
+  bool isMessageSelected(String messageId) =>
+      selectedMessageIds.contains(messageId);
 
   ChatState copyWith({
     ChatStatus? status,
     List<MessageEntity>? messages,
     String? errorMessage,
     bool? isConnected,
-    int? unreadCount,
-    Set<String>? selectedMessageIds,
     MessageEntity? replyingTo,
+    bool clearReplyingTo = false, // Add this flag
+    Set<String>? selectedMessageIds,
     bool? isSelectionMode,
   }) {
     return ChatState(
       status: status ?? this.status,
       messages: messages ?? this.messages,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: errorMessage,
       isConnected: isConnected ?? this.isConnected,
-      unreadCount: unreadCount ?? this.unreadCount,
+      // If clearReplyingTo is true, set to null; otherwise use provided value or keep current
+      replyingTo: clearReplyingTo ? null : (replyingTo ?? this.replyingTo),
       selectedMessageIds: selectedMessageIds ?? this.selectedMessageIds,
-      replyingTo: replyingTo ?? this.replyingTo,
       isSelectionMode: isSelectionMode ?? this.isSelectionMode,
     );
   }
 
-  List<MessageEntity> get selectedMessages => messages
-      .where((message) => selectedMessageIds.contains(message.id))
-      .toList();
-
-  bool isMessageSelected(String messageId) =>
-      selectedMessageIds.contains(messageId);
+  @override
+  List<Object?> get props => [
+    status,
+    messages,
+    errorMessage,
+    isConnected,
+    replyingTo,
+    selectedMessageIds,
+    isSelectionMode,
+  ];
 }

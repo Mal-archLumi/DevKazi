@@ -5,6 +5,7 @@ import '../cubits/user_cubit.dart';
 import '../widgets/logout_dialog.dart';
 import '../widgets/edit_profile_dialog.dart';
 import '../widgets/add_skill_dialog.dart';
+import '../widgets/profile_loading_shimmer.dart';
 import 'package:frontend/core/themes/theme_manager.dart';
 import 'package:frontend/core/constants/route_constants.dart';
 
@@ -17,6 +18,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _isInitialLoad = true;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -27,11 +29,25 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _loadUserData() {
-    if (mounted) context.read<UserCubit>().loadCurrentUser();
+    if (mounted) {
+      context.read<UserCubit>().loadCurrentUser();
+    }
   }
 
   Future<void> _onRefresh() async {
-    await context.read<UserCubit>().loadCurrentUser(forceRefresh: true);
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      await context.read<UserCubit>().loadCurrentUser(forceRefresh: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
   }
 
   @override
@@ -39,55 +55,106 @@ class _ProfilePageState extends State<ProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return BlocConsumer<UserCubit, UserState>(
-      listener: (context, state) {
-        if (state is UserLoaded || state is UserError) _isInitialLoad = false;
-        if (state is UserLoggedOut) _navigateToLogin();
-      },
-      builder: (context, state) {
-        if (_isInitialLoad && state is UserLoading) {
-          return Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(color: colorScheme.primary),
-            ),
-          );
-        }
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: BlocConsumer<UserCubit, UserState>(
+        listener: (context, state) {
+          if (state is UserLoaded || state is UserError) {
+            setState(() {
+              _isInitialLoad = false;
+            });
+          }
+          if (state is UserLoggedOut) _navigateToLogin();
+        },
+        builder: (context, state) {
+          // Show full-page shimmer during initial load
+          if (_isInitialLoad && state is! UserLoaded) {
+            return _buildRefreshWrapper(const ProfileLoadingShimmer());
+          }
 
-        if (state is UserError && state.lastUser == null) {
-          return Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Failed to load profile',
-                    style: theme.textTheme.titleMedium,
+          // Show shimmer while refreshing
+          if (_isRefreshing) {
+            return _buildRefreshWrapper(const ProfileLoadingShimmer());
+          }
+
+          // Error state with retry
+          if (state is UserError && state.lastUser == null) {
+            return RefreshIndicator(
+              onRefresh: _onRefresh,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: colorScheme.error.withOpacity(0.7),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Failed to load profile',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            state.message,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _loadUserData,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Try Again'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Pull down to refresh',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.4),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _loadUserData,
-                    child: const Text('Retry'),
-                  ),
-                ],
+                ),
               ),
-            ),
-          );
-        }
+            );
+          }
 
-        final user = (state is UserLoaded)
-            ? state.user
-            : (state is UserError)
-            ? state.lastUser!
-            : null;
+          // Get user from state
+          final user = (state is UserLoaded)
+              ? state.user
+              : (state is UserError)
+              ? state.lastUser
+              : null;
 
-        if (user == null) return const SizedBox();
+          // Fallback to shimmer if no user data
+          if (user == null) {
+            return _buildRefreshWrapper(const ProfileLoadingShimmer());
+          }
 
-        return Scaffold(
-          backgroundColor: colorScheme.surface,
-          body: RefreshIndicator(
+          // Normal loaded state
+          return RefreshIndicator(
             onRefresh: _onRefresh,
+            color: colorScheme.primary,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -97,10 +164,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
+  }
+
+  // Helper method to wrap shimmer with RefreshIndicator
+  Widget _buildRefreshWrapper(Widget child) {
+    return RefreshIndicator(onRefresh: _onRefresh, child: child);
   }
 
   Widget _buildHeader(BuildContext context, UserEntity user) {
@@ -245,9 +317,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildContent(BuildContext context, UserEntity user) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(

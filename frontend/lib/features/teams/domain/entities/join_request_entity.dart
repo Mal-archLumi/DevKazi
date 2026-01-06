@@ -40,6 +40,10 @@ class JoinRequestEntity extends Equatable {
     updatedAt,
   ];
 
+  get avatarUrl => null;
+
+  get skills => null;
+
   JoinRequestEntity copyWith({
     String? id,
     String? teamId,

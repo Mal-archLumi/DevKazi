@@ -138,6 +138,7 @@ class JoinRequestCard extends StatelessWidget {
               ),
             ],
 
+            // Update the action buttons section in JoinRequestCard
             // Action buttons
             if (canManage && request.status == 'pending') ...[
               const SizedBox(height: 16),
@@ -146,7 +147,11 @@ class JoinRequestCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: onReject,
-                      icon: const Icon(Icons.close, size: 18),
+                      icon: Icon(
+                        Icons.close,
+                        size: 18,
+                        // You could add loading logic here too if needed
+                      ),
                       label: const Text('Decline'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: colorScheme.error,

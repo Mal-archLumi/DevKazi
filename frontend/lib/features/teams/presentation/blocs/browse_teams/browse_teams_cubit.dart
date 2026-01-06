@@ -144,8 +144,8 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
         if (!isClosed) {
           // Check if it's a "pending request already exists" error
           final isPendingError =
-              failure.message?.toLowerCase().contains('pending') == true ||
-              failure.message?.toLowerCase().contains('already') == true;
+              failure.message.toLowerCase().contains('pending') == true ||
+              failure.message.toLowerCase().contains('already') == true;
 
           if (isPendingError) {
             // User already has a pending request - add to pending list

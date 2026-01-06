@@ -19,12 +19,17 @@ abstract class ChatRepository {
     String? replyToId,
   });
 
-  Future<Either<Failure, List<MessageEntity>>> getTeamMessages(String teamId);
+  Future<Either<Failure, List<MessageEntity>>> getTeamMessages(
+    String teamId, {
+    String? token,
+  });
   Future<Either<Failure, void>> deleteMessages(
     String teamId,
     List<String> messageIds,
   );
 
   bool get isConnected;
+
+  get currentTeamId => null;
   void emit(String event, dynamic data);
 }

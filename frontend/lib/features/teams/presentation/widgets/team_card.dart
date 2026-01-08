@@ -41,7 +41,7 @@ class TeamCard extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          team.initial ?? '',
+          team.initial, // Use the new getter
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: Theme.of(context).colorScheme.onPrimaryContainer,
             fontWeight: FontWeight.bold,

@@ -1,8 +1,7 @@
-// lib/app.dart - UPDATED VERSION
+// lib/app.dart - UPDATED
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-import 'package:frontend/core/injection_container.dart' as di; // Single import
+import 'package:frontend/core/injection_container.dart' as di;
 import 'package:frontend/core/constants/route_constants.dart';
 import 'package:frontend/core/services/navigation/app_router.dart';
 import 'package:frontend/core/services/navigation/navigation_service.dart';
@@ -13,7 +12,9 @@ import 'package:frontend/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:frontend/features/chat/presentation/cubits/chat_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
 import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
-import 'package:frontend/features/projects/presentation/cubits/projects_cubit.dart'; // ADD THIS IMPORT
+import 'package:frontend/features/projects/presentation/cubits/projects_cubit.dart';
+// ADD THIS IMPORT
+import 'package:frontend/features/notifications/presentation/cubits/notifications_cubit.dart';
 
 class DevKaziApp extends StatefulWidget {
   const DevKaziApp({super.key});
@@ -47,9 +48,12 @@ class _DevKaziAppState extends State<DevKaziApp> {
             ),
             BlocProvider<ChatCubit>(create: (context) => di.getIt<ChatCubit>()),
             BlocProvider<UserCubit>(create: (context) => di.getIt<UserCubit>()),
-            // ADD ProjectsCubit to the MultiBlocProvider
             BlocProvider<ProjectsCubit>(
               create: (context) => di.getIt<ProjectsCubit>(),
+            ),
+            // ADD NotificationsCubit here
+            BlocProvider<NotificationsCubit>(
+              create: (context) => di.getIt<NotificationsCubit>(),
             ),
           ],
           child: ValueListenableBuilder<ThemeData>(
@@ -64,14 +68,10 @@ class _DevKaziAppState extends State<DevKaziApp> {
                     : (themeManager.isDarkMode
                           ? ThemeMode.dark
                           : ThemeMode.light),
-
-                // Routing configuration
                 navigatorKey: _navigationService.navigatorKey,
                 onGenerateRoute: AppRouter.generateRoute,
                 initialRoute: RouteConstants.splash,
-
                 debugShowCheckedModeBanner: false,
-
                 builder: (context, child) {
                   return MediaQuery(
                     data: MediaQuery.of(

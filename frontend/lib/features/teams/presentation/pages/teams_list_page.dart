@@ -1,3 +1,5 @@
+// lib/features/teams/presentation/pages/teams_list_page.dart (UPDATED)
+
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -18,7 +20,9 @@ import '../../../../core/widgets/loading_shimmer.dart';
 import 'package:frontend/core/constants/route_constants.dart';
 import 'package:frontend/features/teams/domain/entities/team_entity.dart';
 import 'package:frontend/features/user/presentation/cubits/user_cubit.dart';
-import 'package:frontend/features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart'; // ADD THIS
+import 'package:frontend/features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
+import 'package:frontend/features/notifications/presentation/cubits/notifications_cubit.dart';
+import 'package:frontend/features/notifications/presentation/cubits/notifications_state.dart';
 
 class TeamsListPage extends StatefulWidget {
   const TeamsListPage({super.key});
@@ -31,17 +35,31 @@ class _TeamsListPageState extends State<TeamsListPage> {
   int _currentIndex = 0;
   final GlobalKey<_TeamsListBodyState> _teamsListKey = GlobalKey();
   final PageController _pageController = PageController();
+  Timer? _notificationTimer;
 
   @override
   void initState() {
     super.initState();
     _pageController.addListener(_onPageChanged);
+
+    // Load notifications on init
+    Future.microtask(() {
+      context.read<NotificationsCubit>().loadNotifications();
+    });
+
+    // Refresh unread count every 30 seconds
+    _notificationTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        context.read<NotificationsCubit>().refreshUnreadCount();
+      }
+    });
   }
 
   @override
   void dispose() {
     _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
+    _notificationTimer?.cancel();
     super.dispose();
   }
 
@@ -68,12 +86,8 @@ class _TeamsListPageState extends State<TeamsListPage> {
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
-      providers: [
-        // Provide UserCubit at the page level so it persists across tab changes
-        BlocProvider(create: (context) => getIt<UserCubit>()),
-      ],
+      providers: [BlocProvider(create: (context) => getIt<UserCubit>())],
       child: Scaffold(
-        // Only show app bar for the first tab (My Teams)
         appBar: _currentIndex == 0 ? _buildMyTeamsAppBar() : null,
         body: PageView(
           controller: _pageController,
@@ -85,7 +99,6 @@ class _TeamsListPageState extends State<TeamsListPage> {
           children: [
             TeamsListBody(key: _teamsListKey),
             BlocProvider(
-              // ← ADD BlocProvider HERE
               create: (context) => getIt<BrowseTeamsCubit>(),
               child: BrowseTeamsPage(
                 onCreateTeamPressed: _navigateToCreateTeam,
@@ -94,7 +107,6 @@ class _TeamsListPageState extends State<TeamsListPage> {
             const ProfilePage(),
           ],
         ),
-        // Add Floating Action Button - only show on My Teams tab
         floatingActionButton: _currentIndex == 0
             ? _buildFloatingActionButton()
             : null,
@@ -138,9 +150,51 @@ class _TeamsListPageState extends State<TeamsListPage> {
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 10),
-          child: IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: _navigateToNotifications,
+          child: BlocBuilder<NotificationsCubit, NotificationsState>(
+            builder: (context, state) {
+              final unreadCount = state.unreadCount;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: _navigateToNotifications,
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.5),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ],
@@ -238,7 +292,10 @@ class _TeamsListPageState extends State<TeamsListPage> {
   }
 
   void _navigateToNotifications() {
-    // Implement notifications navigation
+    Navigator.of(context).pushNamed(RouteConstants.notifications).then((_) {
+      // Refresh unread count when returning from notifications page
+      context.read<NotificationsCubit>().refreshUnreadCount();
+    });
   }
 
   void _navigateToCreateTeam() {
@@ -267,6 +324,7 @@ class _TeamsListPageState extends State<TeamsListPage> {
   }
 }
 
+// Rest of the TeamsListBody stays the same...
 class TeamsListBody extends StatefulWidget {
   const TeamsListBody({super.key});
 

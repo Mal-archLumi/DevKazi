@@ -1,69 +1,91 @@
-class UserEntity {
+// features/auth/domain/entities/user_entity.dart
+
+import 'package:equatable/equatable.dart';
+
+class UserEntity extends Equatable {
   final String id;
   final String email;
   final String name;
+  final List<String> skills;
+  final String? bio;
+  final String? education;
+  final String? picture;
+  final bool isVerified;
+  final bool isProfilePublic;
+  final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String accessToken;
   final String refreshToken;
-  final List<String> skills;
-  final String? bio;
-  final String? education;
-  final String? avatar;
-  final bool isVerified;
-  final bool isProfilePublic;
-  final bool isActive;
 
   const UserEntity({
     required this.id,
     required this.email,
     required this.name,
+    this.skills = const [],
+    this.bio,
+    this.education,
+    this.picture,
+    this.isVerified = false,
+    this.isProfilePublic = true,
+    this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
     required this.accessToken,
     required this.refreshToken,
-    this.skills = const [],
-    this.bio,
-    this.education,
-    this.avatar,
-    this.isVerified = false,
-    this.isProfilePublic = true,
-    this.isActive = true,
   });
 
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
+  @override
+  List<Object?> get props => [
+    id,
+    email,
+    name,
+    skills,
+    bio,
+    education,
+    picture,
+    isVerified,
+    isProfilePublic,
+    isActive,
+    createdAt,
+    updatedAt,
+    accessToken,
+    refreshToken,
+  ];
 
   UserEntity copyWith({
     String? id,
     String? email,
     String? name,
+    List<String>? skills,
+    String? bio,
+    String? education,
+    String? picture,
+    bool? isVerified,
+    bool? isProfilePublic,
+    bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? accessToken,
     String? refreshToken,
-    List<String>? skills,
-    String? bio,
-    String? education,
-    String? avatar,
-    bool? isVerified,
-    bool? isProfilePublic,
-    bool? isActive,
   }) {
     return UserEntity(
       id: id ?? this.id,
       email: email ?? this.email,
       name: name ?? this.name,
+      skills: skills ?? this.skills,
+      bio: bio ?? this.bio,
+      education: education ?? this.education,
+      picture: picture ?? this.picture,
+      isVerified: isVerified ?? this.isVerified,
+      isProfilePublic: isProfilePublic ?? this.isProfilePublic,
+      isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       accessToken: accessToken ?? this.accessToken,
       refreshToken: refreshToken ?? this.refreshToken,
-      skills: skills ?? this.skills,
-      bio: bio ?? this.bio,
-      education: education ?? this.education,
-      avatar: avatar ?? this.avatar,
-      isVerified: isVerified ?? this.isVerified,
-      isProfilePublic: isProfilePublic ?? this.isProfilePublic,
-      isActive: isActive ?? this.isActive,
     );
   }
 
@@ -93,10 +115,4 @@ class UserEntity {
   }
 
   get teams => null;
-
-  get teamCount => null;
-
-  get projectCount => null;
-
-  get picture => null;
 }

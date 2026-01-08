@@ -1,9 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Types } from 'mongoose';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class UserResponseDto {
-  @ApiProperty({ type: String })
-  _id: Types.ObjectId;
+  @ApiProperty()
+  _id: string;
 
   @ApiProperty()
   email: string;
@@ -14,14 +13,14 @@ export class UserResponseDto {
   @ApiProperty({ type: [String] })
   skills: string[];
 
-  @ApiPropertyOptional()
+  @ApiProperty({ required: false, nullable: true })
   bio?: string;
 
-  @ApiPropertyOptional()
+  @ApiProperty({ required: false, nullable: true })
   education?: string;
 
-  @ApiPropertyOptional()
-  avatar?: string;
+  @ApiProperty({ required: false, nullable: true })
+  picture?: string;
 
   @ApiProperty()
   isVerified: boolean;
@@ -37,11 +36,17 @@ export class UserResponseDto {
 
   @ApiProperty()
   updatedAt: Date;
+
+  @ApiProperty({ description: 'Number of teams the user belongs to', default: 0 })
+  teamCount: number;
+
+  @ApiProperty({ description: 'Number of projects the user owns', default: 0 })
+  projectCount: number;
 }
 
 export class PublicUserResponseDto {
-  @ApiProperty({ type: String })
-  _id: Types.ObjectId;
+  @ApiProperty()
+  _id: string;
 
   @ApiProperty()
   name: string;
@@ -49,12 +54,15 @@ export class PublicUserResponseDto {
   @ApiProperty({ type: [String] })
   skills: string[];
 
-  @ApiPropertyOptional()
+  @ApiProperty({ required: false, nullable: true })
   bio?: string;
 
-  @ApiPropertyOptional()
-  avatar?: string;
+  @ApiProperty({ required: false, nullable: true })
+  picture?: string;
 
   @ApiProperty()
   isVerified: boolean;
+
+  @ApiProperty({ description: 'Number of teams the user belongs to', default: 0 })
+  teamCount: number;
 }

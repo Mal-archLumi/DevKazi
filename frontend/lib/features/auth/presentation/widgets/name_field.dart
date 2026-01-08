@@ -17,13 +17,16 @@ class NameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+        hintStyle: TextStyle(color: theme.hintColor, fontSize: 16),
         filled: true,
-        fillColor: Colors.white,
+        fillColor:
+            theme.inputDecorationTheme.fillColor ??
+            theme.scaffoldBackgroundColor,
 
         // Completely remove borders
         border: InputBorder.none,
@@ -39,11 +42,14 @@ class NameField extends StatelessWidget {
         ),
         prefixIcon: Icon(
           Icons.person_outline_rounded,
-          color: Colors.grey.shade600,
+          color: theme.inputDecorationTheme.iconColor ?? theme.iconTheme.color,
           size: 20,
         ),
       ),
-      style: const TextStyle(fontSize: 16, color: Colors.black87),
+      style: TextStyle(
+        fontSize: 16,
+        color: theme.textTheme.bodyLarge?.color ?? theme.primaryColor,
+      ),
       keyboardType: TextInputType.name,
       textInputAction: TextInputAction.next,
       onChanged: onChanged,

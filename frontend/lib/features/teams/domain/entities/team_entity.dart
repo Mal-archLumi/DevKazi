@@ -31,6 +31,14 @@ class TeamEntity extends Equatable {
   // Helper getter to safely get skills
   List<String> get safeSkills => skills ?? [];
 
+  // Add this getter - same as browse teams
+  String get initial {
+    if (name.isNotEmpty) {
+      return name[0].toUpperCase();
+    }
+    return '?';
+  }
+
   @override
   List<Object?> get props => [
     id,
@@ -45,8 +53,6 @@ class TeamEntity extends Equatable {
     lastActivity,
     createdAt,
   ];
-
-  String? get initial => null;
 
   copyWith({required List<dynamic> members}) {}
 }

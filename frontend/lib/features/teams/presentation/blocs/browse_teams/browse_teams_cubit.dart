@@ -6,6 +6,7 @@ import 'package:frontend/features/teams/domain/use_cases/get_all_teams_usecase.d
 import 'package:frontend/features/teams/domain/use_cases/get_user_teams_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/join_team_usecase.dart';
 import 'package:frontend/features/teams/domain/use_cases/search_browse_teams_usecase.dart';
+import 'package:frontend/features/teams/domain/use_cases/get_pending_requests_usecase.dart'; // ADD THIS
 
 part 'browse_teams_state.dart';
 
@@ -14,12 +15,14 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
   final GetUserTeamsUseCase getUserTeams;
   final JoinTeamUseCase joinTeamUseCase;
   final SearchBrowseTeamsUseCase searchBrowseTeams;
+  final GetPendingRequestsUseCase getPendingRequestsUseCase; // ADD THIS
 
   BrowseTeamsCubit({
     required this.getAllTeams,
     required this.getUserTeams,
     required this.joinTeamUseCase,
     required this.searchBrowseTeams,
+    required this.getPendingRequestsUseCase, // ADD THIS
   }) : super(BrowseTeamsState.initial());
 
   Future<void> loadAllTeams() async {
@@ -27,12 +30,16 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
 
     emit(state.copyWith(status: BrowseTeamsStatus.loading));
 
+    // Load all teams
     final allTeamsResult = await getAllTeams();
-
     if (isClosed) return;
 
+    // Load user's teams
     final userTeamsResult = await getUserTeams();
+    if (isClosed) return;
 
+    // Load user's pending requests - ADD THIS
+    final pendingRequestsResult = await getPendingRequestsUseCase();
     if (isClosed) return;
 
     if (allTeamsResult.isLeft()) {
@@ -59,8 +66,17 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
       return <String>{};
     }, (userTeams) => userTeams.map((team) => team.id).toSet());
 
+    // Extract team IDs from pending requests - ADD THIS
+    final Set<String> pendingTeamIds = pendingRequestsResult.fold((failure) {
+      debugPrint('Failed to get pending requests: ${failure.message}');
+      return <String>{};
+    }, (requests) => requests.map((request) => request.teamId).toSet());
+
     debugPrint('🟡 BrowseTeamsCubit: All teams count: ${allTeams.length}');
     debugPrint('🟡 BrowseTeamsCubit: User team IDs: $userTeamIds');
+    debugPrint(
+      '🟡 BrowseTeamsCubit: Pending team IDs: $pendingTeamIds',
+    ); // ADD THIS
 
     final List<TeamEntity> browsableTeams = allTeams
         .where((team) => !userTeamIds.contains(team.id))
@@ -77,6 +93,7 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
           teams: browsableTeams,
           allTeams: allTeams,
           userTeamIds: userTeamIds,
+          pendingRequestTeamIds: pendingTeamIds, // ADD THIS
         ),
       );
     }
@@ -187,5 +204,15 @@ class BrowseTeamsCubit extends Cubit<BrowseTeamsState> {
 
   bool hasPendingRequest(String teamId) {
     return state.pendingRequestTeamIds.contains(teamId);
+  }
+
+  // ADD THIS: Method to remove pending request when it's accepted/rejected
+  void removePendingRequest(String teamId) {
+    if (isClosed) return;
+
+    final newPendingIds = Set<String>.from(state.pendingRequestTeamIds)
+      ..remove(teamId);
+
+    emit(state.copyWith(pendingRequestTeamIds: newPendingIds));
   }
 }

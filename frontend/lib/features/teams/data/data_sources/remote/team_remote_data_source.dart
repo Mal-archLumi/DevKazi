@@ -540,13 +540,14 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
   @override
   Future<List<JoinRequestModel>> getMyPendingRequests() async {
     try {
-      final response = await client.get(
+      final response = await client.get<List<dynamic>>(
+        // Change from just .get() to .get<List<dynamic>>()
         '/join-requests/my-requests',
         requiresAuth: true,
       );
 
-      if (response is List) {
-        return response
+      if (response.isSuccess && response.data != null) {
+        return response.data!
             .map(
               (json) => JoinRequestModel.fromJson(json as Map<String, dynamic>),
             )
@@ -558,7 +559,7 @@ class TeamRemoteDataSourceImpl implements TeamRemoteDataSource {
       debugPrint(
         '🔴 TeamRemoteDataSource: Error getting my pending requests: $e',
       );
-      rethrow;
+      throw ServerException('Failed to get pending requests: $e');
     }
   }
 

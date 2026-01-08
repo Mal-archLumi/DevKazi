@@ -26,7 +26,7 @@ class UserLocalDataSourceImpl implements UserLocalDataSource {
       'skills': user.skills.join(','),
       'bio': user.bio ?? '',
       'education': user.education ?? '',
-      'avatar': user.avatar ?? '',
+      'picture': user.picture ?? '',
       'isVerified': user.isVerified.toString(),
       'isProfilePublic': user.isProfilePublic.toString(),
     };

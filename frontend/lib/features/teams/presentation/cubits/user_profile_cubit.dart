@@ -1,6 +1,6 @@
 // features/user/presentation/cubits/user_profile_cubit.dart
+
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:frontend/core/errors/failures.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
 
 enum UserProfileStatus { initial, loading, loaded, error }
@@ -48,7 +48,7 @@ class UserProfileCubit extends Cubit<UserProfileState> {
           skills: ['Flutter', 'Dart', 'Firebase'],
           bio: 'This is a sample bio for the user profile.',
           education: 'Sample University',
-          avatar: null,
+          picture: null,
           isVerified: false,
           isProfilePublic: true,
           isActive: true,

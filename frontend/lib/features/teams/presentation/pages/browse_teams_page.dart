@@ -173,16 +173,12 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
     }
 
     if (state.status == BrowseTeamsStatus.error) {
-      return SliverToBoxAdapter(
-        child: Container(
-          height: 300,
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: ErrorState(
-              message: state.errorMessage ?? 'Something went wrong',
-              onRetry: () => context.read<BrowseTeamsCubit>().loadAllTeams(),
-            ),
-          ),
+      return SliverFillRemaining(
+        // CHANGED: Use SliverFillRemaining
+        hasScrollBody: false,
+        child: ErrorState(
+          message: state.errorMessage ?? 'Something went wrong',
+          onRetry: () => context.read<BrowseTeamsCubit>().loadAllTeams(),
         ),
       );
     }
@@ -190,25 +186,19 @@ class _BrowseTeamsPageState extends State<BrowseTeamsPage> {
     final teamsToShow = state.isSearching ? state.filteredTeams : state.teams;
 
     if (teamsToShow.isEmpty) {
-      return SliverToBoxAdapter(
-        child: Container(
-          height: 300,
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: EmptyState(
-              title: state.isSearching
-                  ? 'No teams found'
-                  : 'No teams available',
-              message: state.isSearching
-                  ? 'Try searching with different keywords'
-                  : 'Be the first to create a team and start collaborating!',
-              icon: state.isSearching
-                  ? Icons.search_off_rounded
-                  : Icons.group_add_rounded,
-              actionText: state.isSearching ? null : 'Create Team',
-              onAction: state.isSearching ? null : widget.onCreateTeamPressed,
-            ),
-          ),
+      return SliverFillRemaining(
+        // CHANGED: Use SliverFillRemaining
+        hasScrollBody: false,
+        child: EmptyState(
+          title: state.isSearching ? 'No teams found' : 'No teams available',
+          message: state.isSearching
+              ? 'Try searching with different keywords'
+              : 'Be the first to create a team and start collaborating!',
+          icon: state.isSearching
+              ? Icons.search_off_rounded
+              : Icons.group_add_rounded,
+          actionText: state.isSearching ? null : 'Create Team',
+          onAction: state.isSearching ? null : widget.onCreateTeamPressed,
         ),
       );
     }

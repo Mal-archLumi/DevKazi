@@ -18,8 +18,6 @@ class EmailField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return TextFormField(
       controller: controller,
       onChanged: onChanged,
@@ -28,42 +26,11 @@ class EmailField extends StatelessWidget {
       textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-        ),
-        prefixIcon: Icon(
-          Icons.email_outlined,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-        ),
+        prefixIcon: Icon(Icons.email_outlined),
         filled: true,
-        fillColor: theme.colorScheme.surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: theme.colorScheme.outline.withValues(alpha: 0.3),
-          ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: theme.colorScheme.outline.withValues(alpha: 0.3),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: theme.colorScheme.error),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
-        ),
         errorText: errorText,
       ),
-      style: theme.textTheme.bodyMedium,
+      style: Theme.of(context).textTheme.bodyMedium,
     );
   }
 }

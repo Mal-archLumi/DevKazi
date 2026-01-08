@@ -16,12 +16,20 @@ import { UserResponseDto, PublicUserResponseDto } from './dto/user-response.dto'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Team } from '../teams/schemas/team.schema'; // Adjust import path as needed
+import { Project } from '../projects/schemas/project.schema'; // Adjust import path as needed
 
 @ApiTags('users')
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    @InjectModel(Team.name) private readonly teamModel: Model<Team>,
+    @InjectModel(Project.name) private readonly projectModel: Model<Project>,
+  ) {}
 
   @Get('profile')
   @ApiBearerAuth()
@@ -79,5 +87,30 @@ export class UsersController {
     @Body() removeSkillsDto: RemoveSkillsDto,
   ): Promise<UserResponseDto> {
     return this.usersService.removeSkills(user.userId, removeSkillsDto.skills);
+  }
+
+  @Get('profile/stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user statistics (team count, project count)' })
+  @ApiResponse({ status: 200, description: 'Statistics retrieved successfully' })
+  async getUserStats(@CurrentUser() user: any): Promise<{
+    teamCount: number;
+    projectCount: number;
+  }> {
+    // Get team count
+    const teamCount = await this.teamModel.countDocuments({
+      'members.user': user.userId,
+      'members.status': 'accepted',
+    });
+    
+    // Get project count (if you have projects)
+    const projectCount = await this.projectModel?.countDocuments({
+      owner: user.userId,
+    }) || 0;
+    
+    return {
+      teamCount,
+      projectCount,
+    };
   }
 }

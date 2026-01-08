@@ -1,4 +1,4 @@
-// domain/repositories/team_repository.dart
+// features/teams/domain/repositories/team_repository.dart
 import 'package:dartz/dartz.dart';
 import '/core/errors/failures.dart';
 import '../entities/team_entity.dart';
@@ -30,7 +30,10 @@ abstract class TeamRepository {
     String? message,
   });
   Future<Either<Failure, void>> cancelJoinRequest(String requestId);
+
+  // Added: get my pending join requests
   Future<Either<Failure, List<JoinRequestEntity>>> getMyPendingRequests();
+
   Future<Either<Failure, List<JoinRequestEntity>>> getTeamJoinRequests(
     String teamId,
   );

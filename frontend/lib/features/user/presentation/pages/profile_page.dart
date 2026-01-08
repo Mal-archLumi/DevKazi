@@ -1,3 +1,5 @@
+// features/user/presentation/pages/profile_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
@@ -69,12 +71,12 @@ class _ProfilePageState extends State<ProfilePage> {
         builder: (context, state) {
           // Show full-page shimmer during initial load
           if (_isInitialLoad && state is! UserLoaded) {
-            return _buildRefreshWrapper(const ProfileLoadingShimmer());
+            return const ProfileLoadingShimmer();
           }
 
           // Show shimmer while refreshing
           if (_isRefreshing) {
-            return _buildRefreshWrapper(const ProfileLoadingShimmer());
+            return const ProfileLoadingShimmer();
           }
 
           // Error state with retry
@@ -148,31 +150,27 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // Fallback to shimmer if no user data
           if (user == null) {
-            return _buildRefreshWrapper(const ProfileLoadingShimmer());
+            return const ProfileLoadingShimmer();
           }
 
           // Normal loaded state
           return RefreshIndicator(
             onRefresh: _onRefresh,
             color: colorScheme.primary,
-            child: SingleChildScrollView(
+            child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildHeader(context, user),
-                  _buildContent(context, user),
-                ],
-              ),
+              slivers: [
+                SliverToBoxAdapter(child: _buildHeader(context, user)),
+                SliverToBoxAdapter(child: _buildSkillsSection(context, user)),
+                SliverToBoxAdapter(child: _buildInfoSection(context, user)),
+                SliverToBoxAdapter(child: _buildAccountSection(context)),
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+              ],
             ),
           );
         },
       ),
     );
-  }
-
-  // Helper method to wrap shimmer with RefreshIndicator
-  Widget _buildRefreshWrapper(Widget child) {
-    return RefreshIndicator(onRefresh: _onRefresh, child: child);
   }
 
   Widget _buildHeader(BuildContext context, UserEntity user) {
@@ -200,26 +198,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: _toggleTheme,
-                        icon: Icon(
-                          theme.brightness == Brightness.dark
-                              ? Icons.light_mode_outlined
-                              : Icons.dark_mode_outlined,
-                          color: colorScheme.onSurface,
-                        ),
-                        tooltip: 'Toggle theme',
-                      ),
-                      IconButton(
-                        onPressed: () => _showSettingsMenu(context),
-                        icon: Icon(
-                          Icons.more_vert,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    onPressed: () => _showSettingsMenu(context),
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ],
               ),
@@ -232,11 +216,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: colorScheme.primary.withOpacity(0.2),
-                    width: 3,
+                    width: 2,
                   ),
                 ),
                 child: CircleAvatar(
-                  radius: 50,
+                  radius: 45,
                   backgroundColor: colorScheme.primaryContainer,
                   backgroundImage:
                       user.picture != null && user.picture!.isNotEmpty
@@ -246,7 +230,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ? Text(
                           _getInitials(user.name),
                           style: TextStyle(
-                            fontSize: 32,
+                            fontSize: 28,
                             fontWeight: FontWeight.w600,
                             color: colorScheme.onPrimaryContainer,
                           ),
@@ -294,125 +278,41 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 20),
 
               // Edit profile button
-              OutlinedButton.icon(
-                onPressed: () => _editProfile(context, user),
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Edit Profile'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 10,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _editProfile(context, user),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit Profile'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      side: BorderSide(
+                        color: colorScheme.outline.withOpacity(0.5),
+                      ),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                  IconButton(
+                    onPressed: _toggleTheme,
+                    icon: Icon(
+                      theme.brightness == Brightness.dark
+                          ? Icons.light_mode_outlined
+                          : Icons.dark_mode_outlined,
+                      color: colorScheme.onSurface,
+                    ),
+                    tooltip: 'Toggle theme',
                   ),
-                  side: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
-                ),
+                ],
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildContent(BuildContext context, UserEntity user) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Stats cards
-          _buildStatsRow(context, user),
-
-          const SizedBox(height: 28),
-
-          // Skills section
-          _buildSkillsSection(context, user),
-
-          const SizedBox(height: 28),
-
-          // Info section
-          _buildInfoSection(context, user),
-
-          const SizedBox(height: 28),
-
-          // Account section
-          _buildAccountSection(context),
-
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsRow(BuildContext context, UserEntity user) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            context,
-            icon: Icons.folder_outlined,
-            label: 'Projects',
-            value: '${user.projectCount ?? 0}',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            context,
-            icon: Icons.group_outlined,
-            label: 'Teams',
-            value: '${user.teamCount ?? 0}',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            context,
-            icon: Icons.code_outlined,
-            label: 'Skills',
-            value: '${user.skills.length}',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: colorScheme.primary, size: 22),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withOpacity(0.6),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -421,78 +321,81 @@ class _ProfilePageState extends State<ProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Skills',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Skills',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            TextButton.icon(
-              onPressed: () => _addSkill(context),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add'),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+              TextButton.icon(
+                onPressed: () => _addSkill(context),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (user.skills.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.lightbulb_outline,
-                  size: 32,
-                  color: colorScheme.onSurface.withOpacity(0.3),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'No skills added yet',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.5),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: user.skills.map((skill) {
-              return Chip(
-                label: Text(skill),
-                deleteIcon: Icon(
-                  Icons.close,
-                  size: 16,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                onDeleted: () => _removeSkill(context, skill),
-                backgroundColor: colorScheme.surfaceContainerLow,
-                side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-              );
-            }).toList(),
+            ],
           ),
-      ],
+          const SizedBox(height: 12),
+          if (user.skills.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    size: 28,
+                    color: colorScheme.onSurface.withOpacity(0.3),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No skills added yet',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: user.skills.map((skill) {
+                return Chip(
+                  label: Text(skill),
+                  deleteIcon: Icon(
+                    Icons.close,
+                    size: 14,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  onDeleted: () => _removeSkill(context, skill),
+                  backgroundColor: colorScheme.surfaceContainerLow,
+                  side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
     );
   }
 
@@ -500,48 +403,51 @@ class _ProfilePageState extends State<ProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Information',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Information',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoTile(
+                  context,
+                  icon: Icons.email_outlined,
+                  label: 'Email',
+                  value: user.email,
+                ),
+                Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
+                _buildInfoTile(
+                  context,
+                  icon: Icons.school_outlined,
+                  label: 'Education',
+                  value: user.education ?? 'Not specified',
+                ),
+                Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
+                _buildInfoTile(
+                  context,
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Member since',
+                  value: _formatDate(user.createdAt),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            children: [
-              _buildInfoTile(
-                context,
-                icon: Icons.email_outlined,
-                label: 'Email',
-                value: user.email,
-              ),
-              Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-              _buildInfoTile(
-                context,
-                icon: Icons.school_outlined,
-                label: 'Education',
-                value: user.education ?? 'Not specified',
-              ),
-              Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-              _buildInfoTile(
-                context,
-                icon: Icons.calendar_today_outlined,
-                label: 'Member since',
-                value: _formatDate(user.createdAt),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -555,11 +461,11 @@ class _ProfilePageState extends State<ProfilePage> {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: colorScheme.onSurface.withOpacity(0.5)),
-          const SizedBox(width: 14),
+          Icon(icon, size: 18, color: colorScheme.onSurface.withOpacity(0.5)),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,42 +494,54 @@ class _ProfilePageState extends State<ProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Account',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Account',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+            ),
+            child: Column(
+              children: [
+                _buildActionTile(
+                  context,
+                  icon: Icons.notifications_outlined,
+                  label: 'Notifications',
+                  onTap: () {
+                    Navigator.pushNamed(context, '/notifications');
+                  },
+                ),
+                Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
+                _buildActionTile(
+                  context,
+                  icon: Icons.lock_outline,
+                  label: 'Change Password',
+                  onTap: () => _showChangePassword(context),
+                ),
+                Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
+                _buildActionTile(
+                  context,
+                  icon: Icons.logout,
+                  label: 'Sign Out',
+                  onTap: () => _showLogoutDialog(context),
+                  isDestructive: true,
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            children: [
-              _buildActionTile(
-                context,
-                icon: Icons.lock_outline,
-                label: 'Change Password',
-                onTap: () => _showChangePassword(context),
-              ),
-              Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-              _buildActionTile(
-                context,
-                icon: Icons.logout,
-                label: 'Sign Out',
-                onTap: () => _showLogoutDialog(context),
-                isDestructive: true,
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -714,27 +632,23 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: const Text('Notifications'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to notifications settings
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Privacy'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to privacy settings
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.help_outline),
               title: const Text('Help & Support'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Navigate to help
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Help & support coming soon')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('DevKazi v1.0.0')));
               },
             ),
             const SizedBox(height: 8),

@@ -31,19 +31,27 @@ export class UsersService {
 
   // Profile management
   async getProfile(userId: string): Promise<UserResponseDto> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userModel
+      .findById(userId)
+      .select('+teamCount +projectCount') // Select virtual fields
+      .exec();
+    
     if (!user) {
       throw new NotFoundException('User not found');
     }
+    
     return this.mapToUserResponseDto(user);
   }
 
   async getPublicProfile(userId: string): Promise<PublicUserResponseDto> {
-    const user = await this.userModel.findOne({
-      _id: userId,
-      isActive: true,
-      isProfilePublic: true,
-    });
+    const user = await this.userModel
+      .findOne({
+        _id: userId,
+        isActive: true,
+        isProfilePublic: true,
+      })
+      .select('+teamCount')
+      .exec();
 
     if (!user) {
       throw new NotFoundException('User not found or profile is private');
@@ -145,35 +153,39 @@ export class UsersService {
     return validatedSkills;
   }
 
-  private mapToUserResponseDto(user: UserDocument): UserResponseDto {
-    const userObj = user.toObject ? user.toObject() : user;
+  private async mapToUserResponseDto(user: UserDocument): Promise<UserResponseDto> {
+    // Populate virtual fields if needed
+    const userWithVirtuals = await user.populate(['teamCount', 'projectCount']);
     
     return {
-      _id: (userObj as any)._id?.toString() || '',
-      email: userObj.email,
-      name: userObj.name,
-      skills: userObj.skills || [],
-      bio: userObj.bio,
-      education: userObj.education,
-      avatar: userObj.avatar,
-      isVerified: userObj.isVerified || false,
-      isProfilePublic: userObj.isProfilePublic !== undefined ? userObj.isProfilePublic : true,
-      isActive: userObj.isActive !== undefined ? userObj.isActive : true,
-      createdAt: (userObj as any).createdAt || new Date(),
-      updatedAt: (userObj as any).updatedAt || new Date(),
+      _id: userWithVirtuals._id.toString(),
+      email: userWithVirtuals.email,
+      name: userWithVirtuals.name,
+      skills: userWithVirtuals.skills || [],
+      bio: userWithVirtuals.bio,
+      education: userWithVirtuals.education,
+      picture: (userWithVirtuals as any).picture || userWithVirtuals.avatar,
+      isVerified: userWithVirtuals.isVerified || false,
+      isProfilePublic: userWithVirtuals.isProfilePublic !== undefined ? userWithVirtuals.isProfilePublic : true,
+      isActive: userWithVirtuals.isActive !== undefined ? userWithVirtuals.isActive : true,
+      createdAt: userWithVirtuals.createdAt || new Date(),
+      updatedAt: userWithVirtuals.updatedAt || new Date(),
+      teamCount: (userWithVirtuals as any).teamCount || 0,
+      projectCount: (userWithVirtuals as any).projectCount || 0,
     };
   }
 
-  private mapToPublicUserResponseDto(user: UserDocument): PublicUserResponseDto {
-    const userObj = user.toObject ? user.toObject() : user;
+  private async mapToPublicUserResponseDto(user: UserDocument): Promise<PublicUserResponseDto> {
+    const userWithVirtuals = await user.populate('teamCount');
     
     return {
-      _id: (userObj as any)._id?.toString() || '',
-      name: userObj.name,
-      skills: userObj.skills || [],
-      bio: userObj.bio,
-      avatar: userObj.avatar,
-      isVerified: userObj.isVerified || false,
+      _id: userWithVirtuals._id.toString(),
+      name: userWithVirtuals.name,
+      skills: userWithVirtuals.skills || [],
+      bio: userWithVirtuals.bio,
+      picture: (userWithVirtuals as any).picture || userWithVirtuals.avatar,
+      isVerified: userWithVirtuals.isVerified || false,
+      teamCount: (userWithVirtuals as any).teamCount || 0,
     };
   }
 }

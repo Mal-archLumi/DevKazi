@@ -14,6 +14,7 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { JoinRequestsModule } from './modules/teams/join-requests/join-requests.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 // Import app controller and service
 import { AppController } from './app.controller';
@@ -84,6 +85,7 @@ import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy';
     JoinRequestsModule, // ✅ Ensure this is here
     ChatModule,
     ProjectsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -105,7 +107,8 @@ export class AppModule {
       'TeamsModule',
       'JoinRequestsModule',
       'ChatModule',
-      'ProjectsModule'
+      'ProjectsModule',
+      'NotificationsModule'
     ]);
   }
 }

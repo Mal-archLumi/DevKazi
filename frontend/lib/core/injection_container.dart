@@ -1,6 +1,7 @@
 // core/injection_container.dart - Complete version with all fixes
 import 'dart:async';
 import 'package:frontend/features/chat/domain/use_cases/delete_messages_use_case.dart';
+import 'package:frontend/features/teams/domain/use_cases/get_pending_requests_usecase.dart'; // Already imported
 import 'package:frontend/features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/create_team/create_team_cubit.dart';
 import 'package:frontend/features/teams/presentation/blocs/teams/teams_cubit.dart';
@@ -66,6 +67,14 @@ import '../../features/user/domain/use_cases/get_current_user_use_case.dart';
 import '../../features/user/domain/use_cases/update_profile_use_case.dart';
 import '../../features/user/domain/use_cases/logout_use_case.dart';
 import '../../features/user/presentation/cubits/user_cubit.dart';
+
+// Notifications
+import '../../features/notifications/data/data_sources/notification_remote_data_source.dart';
+import '../../features/notifications/data/repositories/notification_repository_impl.dart';
+import '../../features/notifications/domain/repositories/notification_repository.dart';
+import '../../features/notifications/domain/use_cases/get_notifications_use_case.dart';
+import '../../features/notifications/domain/use_cases/clear_notifications_use_case.dart';
+import '../../features/notifications/presentation/cubits/notifications_cubit.dart';
 
 // Events
 import 'package:frontend/core/events/user_status_events.dart';
@@ -158,6 +167,11 @@ Future<void> initDependencies() async {
     () => JoinTeamUseCase(getIt<TeamRepository>()),
   );
 
+  // ADD THIS LINE - Register GetPendingRequestsUseCase
+  getIt.registerLazySingleton<GetPendingRequestsUseCase>(
+    () => GetPendingRequestsUseCase(repository: getIt<TeamRepository>()),
+  );
+
   getIt.registerFactory<TeamsCubit>(
     () => TeamsCubit(
       getUserTeamsUseCase: getIt<GetUserTeamsUseCase>(),
@@ -175,6 +189,8 @@ Future<void> initDependencies() async {
       getUserTeams: getIt<GetUserTeamsUseCase>(),
       joinTeamUseCase: getIt<JoinTeamUseCase>(),
       searchBrowseTeams: getIt<SearchBrowseTeamsUseCase>(),
+      getPendingRequestsUseCase:
+          getIt<GetPendingRequestsUseCase>(), // Now this will work
     ),
   );
 
@@ -312,6 +328,47 @@ Future<void> initDependencies() async {
   // Register JoinRequestsCubit - use factory so each screen gets fresh instance
   getIt.registerFactory<JoinRequestsCubit>(
     () => JoinRequestsCubit(teamRepository: getIt<TeamRepository>()),
+  );
+
+  // ============================================================================
+  // NOTIFICATIONS DEPENDENCIES
+  // ============================================================================
+
+  // Notification Remote Data Source
+  getIt.registerLazySingleton<NotificationRemoteDataSource>(
+    () => NotificationRemoteDataSourceImpl(
+      baseUrl: baseUrl.replaceAll('/api/v1', ''),
+      getToken: () async {
+        final authRepo = getIt<AuthRepository>();
+        return await authRepo.getAccessToken();
+      },
+    ),
+  );
+
+  // Notification Repository
+  getIt.registerLazySingleton<NotificationRepository>(
+    () => NotificationRepositoryImpl(
+      remoteDataSource: getIt<NotificationRemoteDataSource>(),
+      networkInfo: getIt<NetworkInfo>(),
+    ),
+  );
+
+  // Notification Use Cases
+  getIt.registerLazySingleton<GetNotificationsUseCase>(
+    () => GetNotificationsUseCase(getIt<NotificationRepository>()),
+  );
+
+  getIt.registerLazySingleton<ClearNotificationsUseCase>(
+    () => ClearNotificationsUseCase(getIt<NotificationRepository>()),
+  );
+
+  // Notifications Cubit
+  getIt.registerFactory<NotificationsCubit>(
+    () => NotificationsCubit(
+      getNotificationsUseCase: getIt<GetNotificationsUseCase>(),
+      clearNotificationsUseCase: getIt<ClearNotificationsUseCase>(),
+      repository: getIt<NotificationRepository>(),
+    ),
   );
 }
 

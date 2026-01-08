@@ -1,5 +1,8 @@
+// users/schemas/user.schema.ts
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { Team } from '../../teams/schemas/team.schema';
 
 export type UserDocument = User & Document;
 
@@ -8,16 +11,16 @@ export class User {
   @Prop({ required: true, unique: true, lowercase: true, index: true })
   email: string;
 
-  @Prop({ minlength: 6 }) // Removed 'required: true' for OAuth support
+  @Prop({ minlength: 6 })
   password?: string;
 
   @Prop({ required: true, trim: true, minlength: 2, maxlength: 50 })
   name: string;
 
-  @Prop({ unique: true, sparse: true }) // Add googleId for OAuth
+  @Prop({ unique: true, sparse: true })
   googleId?: string;
 
-  @Prop() // Add picture field for Google profile
+  @Prop()
   picture?: string;
 
   @Prop({ type: [String], default: [] })
@@ -41,12 +44,6 @@ export class User {
   @Prop({ default: true })
   isActive: boolean;
 
-  @Prop({ virtual: true })
-  joinedTeams?: Array<{
-    team: Types.ObjectId;
-    joinedAt: Date;
-  }>;
-
   createdAt: Date;
   updatedAt: Date;
 
@@ -59,9 +56,29 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
+// Virtual for team count
+UserSchema.virtual('teamCount', {
+  ref: 'Team',
+  localField: '_id',
+  foreignField: 'members.user',
+  count: true,
+});
+
+// Virtual for project count (if needed)
+UserSchema.virtual('projectCount', {
+  ref: 'Project',
+  localField: '_id',
+  foreignField: 'owner',
+  count: true,
+});
+
+// Ensure virtuals are included in toJSON and toObject
+UserSchema.set('toJSON', { virtuals: true });
+UserSchema.set('toObject', { virtuals: true });
+
 // Indexes for optimization
 UserSchema.index({ email: 1 });
-UserSchema.index({ googleId: 1 }); // Added for OAuth lookups
+UserSchema.index({ googleId: 1 });
 UserSchema.index({ skills: 1 });
 UserSchema.index({ name: 'text', bio: 'text' });
 UserSchema.index({ isActive: 1 });

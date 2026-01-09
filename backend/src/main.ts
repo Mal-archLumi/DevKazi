@@ -20,7 +20,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3001);
   const frontendUrl = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const nodeEnv = configService.get<string>('NODE_ENV', 'production');
 
   // Validate required environment variables
   const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET', 'GOOGLE_WEB_CLIENT_ID'];

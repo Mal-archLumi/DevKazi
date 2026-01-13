@@ -104,13 +104,31 @@ class ChatRepositoryImpl implements ChatRepository {
     }
 
     try {
+      _logger.i('🔄 Loading messages for team: $teamId');
+
       final messages = await remoteDataSource.getTeamMessages(
         teamId,
         token: token,
       );
-      final messageEntities = messages
-          .map((model) => model.toEntity())
-          .toList();
+
+      // Convert models to entities with null sender handling
+      final messageEntities = messages.map((model) {
+        try {
+          return model.toEntity();
+        } catch (e) {
+          _logger.w('⚠️ Failed to convert message model to entity: $e');
+          // Create a fallback entity for invalid messages
+          return MessageEntity(
+            id: model.id ?? 'unknown',
+            teamId: teamId,
+            senderId: model.senderId ?? 'unknown',
+            senderName: model.senderName ?? 'Deleted User',
+            content: model.content ?? '[Message could not be loaded]',
+            timestamp: DateTime.now(),
+          );
+        }
+      }).toList();
+
       _logger.i('✅ Loaded ${messageEntities.length} messages for team $teamId');
       return Right(messageEntities);
     } catch (e) {

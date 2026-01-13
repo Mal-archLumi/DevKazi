@@ -2,7 +2,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:frontend/core/errors/failures.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
-import 'package:frontend/features/auth/domain/entities/tokens_entity.dart'; // Add this import
+import 'package:frontend/features/auth/domain/entities/tokens_entity.dart';
 
 abstract class AuthRepository {
   Future<Either<Failure, UserEntity>> login(String email, String password);
@@ -19,7 +19,8 @@ abstract class AuthRepository {
   Future<void> saveTokens(String accessToken, String refreshToken);
   Future<String?> getAccessToken();
   Future<String?> getRefreshToken();
-
-  // ADD THIS MISSING METHOD:
   Future<TokensEntity> getTokens();
+
+  // ADD THIS METHOD:
+  Future<void> clearTokens(); // Add this line
 }

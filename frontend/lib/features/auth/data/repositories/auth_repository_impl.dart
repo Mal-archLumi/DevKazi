@@ -458,4 +458,27 @@ class AuthRepositoryImpl implements AuthRepository {
       return false;
     }
   }
+
+  @override
+  Future<void> clearTokens() async {
+    try {
+      print('🟡 AuthRepositoryImpl: Clearing tokens...');
+
+      await _secureStorage.delete(key: _accessTokenKey);
+      await _secureStorage.delete(key: _refreshTokenKey);
+      await _secureStorage.delete(key: _userIdKey);
+      await _secureStorage.delete(key: _userDataKey);
+
+      // Verify tokens were cleared
+      final accessToken = await _secureStorage.read(key: _accessTokenKey);
+      final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
+
+      print('🟢 AuthRepositoryImpl: Tokens cleared successfully');
+      print('🟢 Access token still exists: ${accessToken != null}');
+      print('🟢 Refresh token still exists: ${refreshToken != null}');
+    } catch (e) {
+      print('🔴 AuthRepositoryImpl: Error clearing tokens: $e');
+      rethrow;
+    }
+  }
 }

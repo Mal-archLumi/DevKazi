@@ -1,4 +1,4 @@
-// main.ts
+// main.ts - UPDATED WITH ENHANCED CORS
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe, BadRequestException } from '@nestjs/common';
@@ -42,12 +42,76 @@ async function bootstrap() {
   // Security
   app.use(helmet());
 
-  // CORS
+  // ✅ ENHANCED CORS CONFIGURATION
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    frontendUrl
+  ].filter(Boolean); // Remove any falsy values
+
+  // Remove duplicates
+  const uniqueOrigins = [...new Set(allowedOrigins)];
+  
+  console.log('🌐 CORS Allowed Origins:', uniqueOrigins);
+
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Check if origin is allowed
+      if (uniqueOrigins.indexOf(origin) !== -1) {
+        return callback(null, true);
+      }
+
+      // In development, allow all origins for easier debugging
+      if (nodeEnv === 'development') {
+        console.log(`🌐 Development: Allowing origin ${origin}`);
+        return callback(null, true);
+      }
+
+      console.warn(`🌐 CORS Blocked: ${origin}`);
+      return callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+      'X-Request-ID',
+      'X-CSRF-Token'
+    ],
+    exposedHeaders: [
+      'Content-Range',
+      'X-Content-Range',
+      'X-Total-Count',
+      'X-Request-ID'
+    ],
+    maxAge: 86400, // 24 hours
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  });
+
+  // Add CORS logging middleware
+  app.use((req: Request, res: Response, next) => {
+    const origin = req.headers.origin;
+    const method = req.method;
+    const path = req.path;
+    
+    if (method === 'OPTIONS') {
+      console.log(`🌐 CORS Preflight: ${method} ${path} from ${origin || 'no origin'}`);
+    } else {
+      console.log(`🌐 CORS Request: ${method} ${path} from ${origin || 'no origin'}`);
+    }
+    
+    next();
   });
 
   // Validation
@@ -128,12 +192,14 @@ async function bootstrap() {
           // Sort and log routes
           routes.sort().forEach(route => logger.log(route));
 
-          // ✅ Check for join-requests routes
-          const joinRequestRoutes = routes.filter(r => r.includes('join-requests'));
-          if (joinRequestRoutes.length === 0) {
-            logger.error('⚠️  WARNING: No join-requests routes found!');
+          // ✅ Check for admin routes
+          const adminRoutes = routes.filter(r => r.includes('/admin/'));
+          if (adminRoutes.length === 0) {
+            logger.error('⚠️  WARNING: No admin routes found!');
           } else {
-            logger.log(`✅ Found ${joinRequestRoutes.length} join-requests routes`);
+            logger.log(`✅ Found ${adminRoutes.length} admin routes`);
+            // Log admin routes specifically
+            adminRoutes.forEach(route => logger.log(`  👑 ${route}`));
           }
         } else {
           logger.warn('⚠️  Could not read router stack');

@@ -1,3 +1,4 @@
+// core/constants/route_constants.dart
 class RouteConstants {
   // Auth routes
   static const String splash = '/splash';
@@ -18,4 +19,7 @@ class RouteConstants {
   static const String projects = '/projects';
   static const String notifications = '/notifications';
   static const String teamDetails = '/team-details';
+
+  // ADD THIS:
+  static const String projectDetails = '/project-details';
 }

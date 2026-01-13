@@ -1,7 +1,7 @@
 // lib/features/notifications/presentation/pages/notifications_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:frontend/core/constants/route_constants.dart';
 import '../cubits/notifications_cubit.dart';
 import '../cubits/notifications_state.dart';
 import '../widgets/notification_card.dart';
@@ -17,6 +17,7 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final List<String> _deletingIds = []; // Track deleting notifications
 
   @override
   void initState() {
@@ -218,14 +219,28 @@ class _NotificationsPageState extends State<NotificationsPage>
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notification = notifications[index];
+              final isDeleting = _deletingIds.contains(notification.id);
+
               return NotificationCard(
                 notification: notification,
-                isDeleting: state.deletingId == notification.id,
+                isDeleting: isDeleting,
                 onTap: () => _handleNotificationTap(context, notification),
-                onDismiss: () {
-                  context.read<NotificationsCubit>().deleteNotification(
+                onDismiss: () async {
+                  // Add to deleting list
+                  setState(() {
+                    _deletingIds.add(notification.id);
+                  });
+
+                  // Delete from backend
+                  await context.read<NotificationsCubit>().deleteNotification(
                     notification.id,
                   );
+
+                  // Remove from deleting list
+                  setState(() {
+                    _deletingIds.remove(notification.id);
+                  });
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text('Notification deleted'),
@@ -368,16 +383,48 @@ class _NotificationsPageState extends State<NotificationsPage>
       context.read<NotificationsCubit>().markAsRead(notification.id);
     }
 
-    // Handle navigation based on notification type
-    if (notification.actionUrl != null) {
-      // Navigate to the appropriate page
-      // You can implement your navigation logic here
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Navigate to: ${notification.actionUrl}'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    // Handle navigation based on notification type and actionUrl
+    if (notification.actionUrl != null && notification.actionUrl!.isNotEmpty) {
+      final actionUrl = notification.actionUrl!;
+
+      // Parse the actionUrl to determine where to navigate
+      if (actionUrl.startsWith('teams/')) {
+        // Extract team ID from the URL
+        final parts = actionUrl.split('/');
+        if (parts.length >= 2) {
+          final teamId = parts[1];
+          // Navigate to team details page
+          Navigator.of(context).pushNamed(
+            RouteConstants.teamDetails,
+            arguments: {'teamId': teamId},
+          );
+          return;
+        }
+      } else if (actionUrl.startsWith('projects/')) {
+        // Extract project ID from the URL
+        final parts = actionUrl.split('/');
+        if (parts.length >= 2) {
+          final projectId = parts[1];
+          // Navigate to project details page
+          // You might need to create this route
+          Navigator.of(context).pushNamed(
+            RouteConstants.projectDetails, // Make sure this route exists
+            arguments: {'projectId': projectId},
+          );
+          return;
+        }
+      }
+
+      // If no specific navigation, show snackbar (only for debugging)
+      if (notification.actionUrl!.contains('debug')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Navigate to: ${notification.actionUrl}'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 

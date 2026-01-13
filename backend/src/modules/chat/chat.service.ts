@@ -1,3 +1,4 @@
+// chat.service.ts
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
@@ -43,18 +44,55 @@ export class ChatService {
     return await message.save();
   }
 
-  async getTeamMessages(teamId: string, limit: number = 100): Promise<Message[]> {
-    if (!this.isValidObjectId(teamId)) {
-      throw new BadRequestException('Invalid team ID');
-    }
+  async getTeamMessages(teamId: string, limit: number = 100): Promise<any[]> {
+  if (!this.isValidObjectId(teamId)) {
+    throw new BadRequestException('Invalid team ID');
+  }
 
-    return this.messageModel
-      .find({ team: teamId })
-      .populate('sender', 'name email username firstName lastName')
+  try {
+    const messages = await this.messageModel
+      .find({ 
+        $or: [
+          { team: teamId },
+          { team: new Types.ObjectId(teamId) }
+        ]
+      })
+      .populate({
+        path: 'sender',
+        select: 'name email isActive',
+        // This ensures we still get the document even if isActive is false
+        match: { /* no match filter - get all */ }
+      })
       .sort({ timestamp: 1 })
       .limit(limit)
+      .lean()
       .exec();
+
+    // Process messages to handle deleted/inactive users
+    const processedMessages = messages.map(message => {
+      // If sender doesn't exist or is inactive, create a placeholder
+      if (!message.sender || (message.sender as any).isActive === false) {
+        return {
+          ...message,
+          sender: {
+            _id: message.sender?._id || new Types.ObjectId(),
+            name: 'Deleted User',
+            email: 'deleted@example.com',
+            isActive: false
+          }
+        };
+      }
+      
+      return message;
+    });
+
+    this.logger.log(`Returned ${processedMessages.length} messages for team ${teamId}`);
+    return processedMessages;
+  } catch (error: any) {
+    this.logger.error(`Error fetching messages for team ${teamId}: ${error.message}`);
+    throw error;
   }
+}
 
   async getMessageById(messageId: string): Promise<Message | null> {
     if (!this.isValidObjectId(messageId)) {
@@ -63,7 +101,7 @@ export class ChatService {
 
     return this.messageModel
       .findById(messageId)
-      .populate('sender', 'name email username firstName lastName')
+      .populate('sender', 'name email username firstName lastName _id')
       .exec();
   }
 
@@ -72,7 +110,6 @@ export class ChatService {
       throw new BadRequestException('Message IDs are required');
     }
 
-    // FIX: Use parentheses (), not backticks ``
     this.logger.log(`🗑️ Attempting to delete ${messageIds.length} messages`);
     this.logger.log(`🗑️ Message IDs: ${messageIds.join(', ')}`);
 
@@ -121,6 +158,25 @@ export class ChatService {
       .find({ _id: { $in: messageIds } })
       .populate('sender', '_id name email')
       .exec();
+  }
+
+  // NEW METHOD: Clean up orphaned messages (messages with null senders)
+  async cleanupOrphanedMessages(teamId?: string): Promise<{ deletedCount: number }> {
+    try {
+      const query: any = { sender: null };
+      if (teamId) {
+        query.team = teamId;
+      }
+
+      const result = await this.messageModel.deleteMany(query).exec();
+      
+      this.logger.log(`🧹 Cleaned up ${result.deletedCount} orphaned messages${teamId ? ` for team ${teamId}` : ''}`);
+      
+      return { deletedCount: result.deletedCount };
+    } catch (error) {
+      this.logger.error(`❌ Error cleaning up orphaned messages: ${error.message}`);
+      throw error;
+    }
   }
 
   private isValidObjectId(id: string): boolean {

@@ -1,5 +1,6 @@
 // core/injection_container.dart - Complete version with all fixes
 import 'dart:async';
+import 'package:frontend/core/services/token_refresh_service.dart';
 import 'package:frontend/features/chat/domain/use_cases/delete_messages_use_case.dart';
 import 'package:frontend/features/teams/domain/use_cases/get_pending_requests_usecase.dart'; // Already imported
 import 'package:frontend/features/teams/presentation/blocs/browse_teams/browse_teams_cubit.dart';
@@ -125,6 +126,8 @@ Future<void> initDependencies() async {
       authRepository: getIt<AuthRepository>(),
     ),
   );
+
+  getIt.registerLazySingleton<TokenRefreshService>(() => TokenRefreshService());
 
   // Team dependencies
   getIt.registerLazySingleton<TeamRemoteDataSource>(

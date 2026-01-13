@@ -1,4 +1,4 @@
-// app.module.ts
+// app.module.ts - UPDATED
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -7,7 +7,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
-// Import modules IN THIS ORDER
+// Import modules
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { TeamsModule } from './modules/teams/teams.module';
@@ -15,6 +15,7 @@ import { JoinRequestsModule } from './modules/teams/join-requests/join-requests.
 import { ChatModule } from './modules/chat/chat.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AdminModule } from './admin/admin.module';
 
 // Import app controller and service
 import { AppController } from './app.controller';
@@ -56,6 +57,11 @@ import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy';
         name: 'strict',
         ttl: 60000,
         limit: 5,
+      },
+      {
+        name: 'admin',
+        ttl: 60000,
+        limit: 30,
       }
     ]),
     
@@ -82,10 +88,11 @@ import { WebSocketJwtStrategy } from './auth/strategies/websocket-jwt.strategy';
     AuthModule,
     UsersModule,
     TeamsModule,
-    JoinRequestsModule, // ✅ Ensure this is here
+    JoinRequestsModule,
     ChatModule,
     ProjectsModule,
     NotificationsModule,
+    AdminModule, // ADD THIS LINE
   ],
   controllers: [AppController],
   providers: [
@@ -108,7 +115,8 @@ export class AppModule {
       'JoinRequestsModule',
       'ChatModule',
       'ProjectsModule',
-      'NotificationsModule'
+      'NotificationsModule',
+      'AdminModule', // ADD THIS
     ]);
   }
 }

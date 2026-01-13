@@ -461,20 +461,66 @@ async leaveTeam(teamId: string, userId: string): Promise<void> {
       throw new BadRequestException('You are not a member of this team');
     }
 
-    // Check if user is the owner (owners can't leave, they must delete or transfer ownership)
-    if (this.isUserOwner(team, userId)) {
-      throw new BadRequestException('Team owner cannot leave the team. Please transfer ownership or delete the team.');
+    const isOwner = this.isUserOwner(team, userId);
+    const memberCount = team.members.length;
+
+    // REMOVED: The old check that prevented owners from leaving
+    // if (this.isUserOwner(team, userId)) {
+    //   throw new BadRequestException('Team owner cannot leave the team. Please transfer ownership or delete the team.');
+    // }
+
+    // NEW: Handle owner leaving
+    if (isOwner) {
+      // If owner is the only member, delete the team
+      if (memberCount === 1) {
+        await this.teamModel.findByIdAndDelete(teamId).exec();
+        this.logger.log(`Team ${teamId} deleted because owner was the only member`);
+        return;
+      }
+      
+      // If there are other members, transfer ownership to the next member
+      // Find a member who is NOT the owner
+      const otherMembers = team.members.filter(member => 
+        this.getUserId(member.user) !== userId
+      );
+      
+      if (otherMembers.length === 0) {
+        throw new BadRequestException('No other members to transfer ownership to');
+      }
+      
+      // Transfer ownership to the first other member (earliest joiner)
+      const newOwner = otherMembers[0].user;
+      team.owner = newOwner;
+      
+      // Remove user from members
+      team.members = team.members.filter(member => 
+        this.getUserId(member.user) !== userId
+      );
+      
+      team.lastActivity = new Date();
+      await team.save();
+      
+      this.logger.log(`Ownership of team ${team._id} transferred from ${userId} to ${this.getUserId(newOwner)}`);
+      return;
     }
 
-    // Remove user from members
+    // For non-owners, simply remove from members
     team.members = team.members.filter(member => 
       this.getUserId(member.user) !== userId
     );
 
+    // Update last activity
     team.lastActivity = new Date();
+    
+    // Save the team
     await team.save();
     
-    this.logger.log(`User ${userId} left team ${team._id}`);
+    this.logger.log(`User ${userId} left team ${team._id}. Members: ${memberCount} → ${team.members.length}`);
+    
+    // IMPORTANT: We DON'T delete user messages when they leave
+    // Messages should remain as historical record
+    // The frontend will handle "Deleted User" display
+    
   } catch (error) {
     this.logger.error(`Failed to leave team ${teamId}: ${error.message}`);
     if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -482,5 +528,5 @@ async leaveTeam(teamId: string, userId: string): Promise<void> {
     }
     throw new InternalServerErrorException('Failed to leave team');
   }
- }
+}
 }

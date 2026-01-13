@@ -1,3 +1,4 @@
+// lib/features/auth/presentation/widgets/email_field.dart
 import 'package:flutter/material.dart';
 
 class EmailField extends StatelessWidget {
@@ -18,6 +19,8 @@ class EmailField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return TextFormField(
       controller: controller,
       onChanged: onChanged,
@@ -26,11 +29,17 @@ class EmailField extends StatelessWidget {
       textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         hintText: hintText,
-        prefixIcon: Icon(Icons.email_outlined),
+        hintStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
+        ),
+        prefixIcon: Icon(
+          Icons.email_outlined,
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
+        ),
         filled: true,
         errorText: errorText,
       ),
-      style: Theme.of(context).textTheme.bodyMedium,
+      style: theme.textTheme.bodyMedium,
     );
   }
 }

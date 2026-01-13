@@ -505,7 +505,7 @@ class ChatCubit extends Cubit<ChatState> {
       return;
     }
 
-    // Create optimistic message
+    // Create optimistic message - FIXED: removed hasSender parameter
     final tempMessage = MessageEntity(
       id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
       teamId: teamId,

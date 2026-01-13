@@ -217,38 +217,40 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string): Promise<{ 
-    access_token: string; 
-    refresh_token: string;
-  }> {
-    if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token is required');
-    }
+  access_token: string; 
+  refresh_token: string;
+}> {
+  if (!refreshToken) {
+    throw new UnauthorizedException('Refresh token is required');
+  }
 
-    try {
-      const payload = await this.jwtService.verifyAsync(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
-      });
+  try {
+    // Verify refresh token with the refresh secret
+    const payload = await this.jwtService.verifyAsync(refreshToken, {
+      secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret', // Use refresh secret
+    });
 
-      const user = await this.userModel.findById(payload.sub);
-      if (!user || !user.isActive) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      // Check if user needs to re-authenticate
-      const tokenIssuedAt = payload.iat * 1000;
-      const userUpdatedAt = user.updatedAt;
-      if (userUpdatedAt && userUpdatedAt.getTime() > tokenIssuedAt) {
-        throw new UnauthorizedException('Session expired. Please login again.');
-      }
-
-      return this.generateTokens(user);
-    } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException('Refresh token expired');
-      }
+    const user = await this.userModel.findById(payload.sub);
+    if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+
+    // Generate new tokens
+    const tokens = await this.generateTokens(user);
+    
+    return tokens;
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    
+    if (error.name === 'TokenExpiredError') {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+    if (error.name === 'JsonWebTokenError') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    throw new UnauthorizedException('Token refresh failed');
   }
+}
 
   async validateUser(payload: any): Promise<any> {
     if (!payload || !payload.sub) {
@@ -404,34 +406,36 @@ export class AuthService {
   }
 
   private async generateTokens(user: UserDocument): Promise<{
-    access_token: string;
-    refresh_token: string;
-  }> {
-    // Enhanced JWT payload with user data
-    const payload = {
-      sub: user._id.toString(),        // Required
-      userId: user._id.toString(),     // Additional identifier
-      email: user.email,               // User email
-      name: user.name,                 // User name
-      isVerified: user.isVerified,     // Verification status
-      // ... add other user data as needed
-    };
+  access_token: string;
+  refresh_token: string;
+}> {
+  // Enhanced JWT payload with user data - MUST MATCH JWT STRATEGY EXPECTATIONS
+  const payload = {
+    sub: user._id.toString(),        // Required
+    userId: user._id.toString(),     // Additional identifier
+    email: user.email,               // User email
+    name: user.name,                 // User name
+    isVerified: user.isVerified,     // Verification status
+    role: user.role || 'user',       // User role (default to 'user') - ADD THIS
+    permissions: user.permissions || [], // User permissions - ADD THIS
+    isAdmin: user.role === 'admin' || user.role === 'super_admin', // Calculate isAdmin
+  };
 
-    const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
-      secret: process.env.JWT_SECRET || 'fallback-secret',
-    });
+  const access_token = await this.jwtService.signAsync(payload, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    secret: process.env.JWT_SECRET || 'fallback-secret',
+  });
 
-    const refresh_token = await this.jwtService.signAsync(
-      { sub: user._id.toString() }, // Simpler payload for refresh token
-      {
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-        secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
-      }
-    );
+  const refresh_token = await this.jwtService.signAsync(
+    { sub: user._id.toString() }, // Simpler payload for refresh token
+    {
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
+    }
+  );
 
-    return { access_token, refresh_token };
-  }
+  return { access_token, refresh_token };
+}
 
   private sanitizeUser(user: UserDocument): any {
     const userObj = user.toObject ? user.toObject() : user;

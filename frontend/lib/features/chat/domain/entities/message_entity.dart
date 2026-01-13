@@ -8,8 +8,8 @@ class MessageEntity extends Equatable {
   final String senderName;
   final String content;
   final DateTime timestamp;
-  final String? replyToId; // ADD THIS
-  final MessageEntity? replyToMessage; // ADD THIS - for hydrated replies
+  final String? replyToId;
+  final MessageEntity? replyToMessage;
 
   const MessageEntity({
     required this.id,

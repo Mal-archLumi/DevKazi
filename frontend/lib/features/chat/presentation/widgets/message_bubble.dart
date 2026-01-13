@@ -1,5 +1,5 @@
-// lib/features/chat/presentation/widgets/message_bubble.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:frontend/features/chat/domain/entities/message_entity.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -201,14 +201,8 @@ class MessageBubble extends StatelessWidget {
   }
 
   String _formatTime(DateTime timestamp) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final messageDay = DateTime(timestamp.year, timestamp.month, timestamp.day);
-
-    if (messageDay == today) {
-      return '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
-    } else {
-      return '${timestamp.day}/${timestamp.month} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
-    }
+    // Always show both date and time: "dd/MM HH:mm"
+    final format = DateFormat('dd/MM HH:mm');
+    return format.format(timestamp);
   }
 }

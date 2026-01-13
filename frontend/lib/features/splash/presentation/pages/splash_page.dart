@@ -1,8 +1,8 @@
-// splash_page.dart
+// splash_page.dart - UPDATED with token refresh
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/route_constants.dart';
-import 'package:frontend/core/injection_container.dart'; // Add this import
-import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
+import 'package:frontend/core/injection_container.dart';
+import 'package:frontend/core/services/token_refresh_service.dart'; // Add this
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -19,24 +19,24 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _initializeApp() async {
-    // Check if user is already authenticated with better logging
-    final authRepository = getIt<AuthRepository>();
+    // Use TokenRefreshService instead of directly checking token
+    final tokenService = TokenRefreshService();
 
-    print('🟡 Splash: Checking for existing token...');
-    final accessToken = await authRepository.getAccessToken();
+    print('🟡 Splash: Checking for valid token...');
+    final validToken = await tokenService.getValidAccessToken();
 
-    print('🟡 Splash: Token exists: ${accessToken != null}');
+    print('🟡 Splash: Valid token exists: ${validToken != null}');
 
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 1));
 
     if (mounted) {
-      if (accessToken != null) {
-        print('🟢 Splash: User is logged in, navigating to teams');
+      if (validToken != null) {
+        print('🟢 Splash: User has valid token, navigating to teams');
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil(RouteConstants.teams, (route) => false);
       } else {
-        print('🔴 Splash: No token found, navigating to login');
+        print('🔴 Splash: No valid token, navigating to login');
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil(RouteConstants.login, (route) => false);

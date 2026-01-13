@@ -1,10 +1,15 @@
-// users/schemas/user.schema.ts
-
+// users/schemas/user.schema.ts - UPDATED
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Team } from '../../teams/schemas/team.schema';
 
 export type UserDocument = User & Document;
+
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+  SUPER_ADMIN = 'super_admin'
+}
 
 @Schema({ timestamps: true })
 export class User {
@@ -44,6 +49,18 @@ export class User {
   @Prop({ default: true })
   isActive: boolean;
 
+  // ADMIN FIELD - UPDATED
+  @Prop({ 
+    type: String, 
+    enum: UserRole, 
+    default: UserRole.USER,
+    index: true 
+  })
+  role: UserRole;
+
+  @Prop({ type: [String], default: [] })
+  permissions: string[]; // Specific permissions like 'view_analytics', 'manage_users'
+
   createdAt: Date;
   updatedAt: Date;
 
@@ -52,6 +69,10 @@ export class User {
 
   @Prop()
   resetPasswordExpires?: Date;
+
+  // Keep this for backward compatibility
+  @Prop({ default: false, select: false })
+  isAdmin?: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
@@ -64,7 +85,7 @@ UserSchema.virtual('teamCount', {
   count: true,
 });
 
-// Virtual for project count (if needed)
+// Virtual for project count
 UserSchema.virtual('projectCount', {
   ref: 'Project',
   localField: '_id',
@@ -73,8 +94,25 @@ UserSchema.virtual('projectCount', {
 });
 
 // Ensure virtuals are included in toJSON and toObject
-UserSchema.set('toJSON', { virtuals: true });
-UserSchema.set('toObject', { virtuals: true });
+UserSchema.set('toJSON', { 
+  virtuals: true,
+  transform: (doc, ret) => {
+    delete ret.password;
+    delete ret.resetPasswordToken;
+    delete ret.resetPasswordExpires;
+    return ret;
+  }
+});
+
+UserSchema.set('toObject', { 
+  virtuals: true,
+  transform: (doc, ret) => {
+    delete ret.password;
+    delete ret.resetPasswordToken;
+    delete ret.resetPasswordExpires;
+    return ret;
+  }
+});
 
 // Indexes for optimization
 UserSchema.index({ email: 1 });
@@ -83,3 +121,4 @@ UserSchema.index({ skills: 1 });
 UserSchema.index({ name: 'text', bio: 'text' });
 UserSchema.index({ isActive: 1 });
 UserSchema.index({ isVerified: 1 });
+UserSchema.index({ role: 1 }); // Index for role queries

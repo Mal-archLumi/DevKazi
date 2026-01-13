@@ -1,3 +1,4 @@
+// features/user/presentation/widgets/profile_loading_shimmer.dart
 import 'package:flutter/material.dart';
 
 class ProfileLoadingShimmer extends StatefulWidget {
@@ -16,12 +17,13 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     )..repeat();
-    _animation = Tween<double>(begin: -2, end: 2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
-    );
+    _animation = Tween<double>(
+      begin: -1.5,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -54,11 +56,23 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
     required double width,
     required double height,
     double borderRadius = 8,
+    Color? baseColor,
+    Color? highlightColor,
   }) {
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
         final colorScheme = Theme.of(context).colorScheme;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        // Use provided colors or default to theme-appropriate ones
+        final bgColor = baseColor ?? colorScheme.surfaceContainerHighest;
+        final hlColor =
+            highlightColor ??
+            (isDark
+                ? colorScheme.surface
+                : colorScheme.primary.withOpacity(0.4));
+
         return Container(
           width: width,
           height: height,
@@ -68,10 +82,11 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
               begin: Alignment(_animation.value - 1, 0),
               end: Alignment(_animation.value + 1, 0),
               colors: [
-                colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                colorScheme.surfaceContainerHighest.withOpacity(0.6),
-                colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                bgColor.withOpacity(0.5),
+                hlColor.withOpacity(0.8),
+                bgColor.withOpacity(0.5),
               ],
+              stops: const [0.0, 0.5, 1.0],
             ),
           ),
         );
@@ -81,11 +96,12 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
 
   Widget _buildHeaderShimmer(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
       ),
       child: SafeArea(
         bottom: false,
@@ -97,12 +113,35 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildShimmerBox(width: 80, height: 28),
+                  _buildShimmerBox(
+                    width: 80,
+                    height: 28,
+                    baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                    highlightColor: isDark
+                        ? Colors.grey[600]
+                        : Colors.grey[300],
+                  ),
                   Row(
                     children: [
-                      _buildShimmerBox(width: 40, height: 40, borderRadius: 20),
+                      _buildShimmerBox(
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                        highlightColor: isDark
+                            ? Colors.grey[600]
+                            : Colors.grey[300],
+                      ),
                       const SizedBox(width: 8),
-                      _buildShimmerBox(width: 40, height: 40, borderRadius: 20),
+                      _buildShimmerBox(
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                        highlightColor: isDark
+                            ? Colors.grey[600]
+                            : Colors.grey[300],
+                      ),
                     ],
                   ),
                 ],
@@ -111,27 +150,54 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
               const SizedBox(height: 24),
 
               // Avatar shimmer
-              _buildShimmerBox(width: 106, height: 106, borderRadius: 53),
+              _buildShimmerBox(
+                width: 106,
+                height: 106,
+                borderRadius: 53,
+                baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+              ),
 
               const SizedBox(height: 16),
 
               // Name shimmer
-              _buildShimmerBox(width: 150, height: 24),
+              _buildShimmerBox(
+                width: 150,
+                height: 24,
+                baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+              ),
 
               const SizedBox(height: 8),
 
               // Email shimmer
-              _buildShimmerBox(width: 200, height: 16),
+              _buildShimmerBox(
+                width: 200,
+                height: 16,
+                baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+              ),
 
               const SizedBox(height: 12),
 
               // Bio shimmer
-              _buildShimmerBox(width: 250, height: 14),
+              _buildShimmerBox(
+                width: 250,
+                height: 14,
+                baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+              ),
 
               const SizedBox(height: 20),
 
               // Edit button shimmer
-              _buildShimmerBox(width: 120, height: 36, borderRadius: 20),
+              _buildShimmerBox(
+                width: 120,
+                height: 36,
+                borderRadius: 20,
+                baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+              ),
             ],
           ),
         ),
@@ -140,36 +206,36 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
   }
 
   Widget _buildContentShimmer(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Stats row shimmer
-          Row(
-            children: [
-              Expanded(child: _buildStatCardShimmer()),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCardShimmer()),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCardShimmer()),
-            ],
+          // Skills section shimmer
+          _buildSectionShimmer(
+            title: true,
+            chipCount: 5,
+            baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+            highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
           ),
 
           const SizedBox(height: 28),
 
-          // Skills section shimmer
-          _buildSectionShimmer(title: true, chipCount: 5),
-
-          const SizedBox(height: 28),
-
           // Info section shimmer
-          _buildInfoSectionShimmer(),
+          _buildInfoSectionShimmer(
+            baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+            highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+          ),
 
           const SizedBox(height: 28),
 
           // Account section shimmer
-          _buildAccountSectionShimmer(),
+          _buildAccountSectionShimmer(
+            baseColor: isDark ? Colors.grey[800] : Colors.grey[200],
+            highlightColor: isDark ? Colors.grey[600] : Colors.grey[300],
+          ),
 
           const SizedBox(height: 40),
         ],
@@ -177,29 +243,12 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
     );
   }
 
-  Widget _buildStatCardShimmer() {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          _buildShimmerBox(width: 22, height: 22, borderRadius: 4),
-          const SizedBox(height: 8),
-          _buildShimmerBox(width: 30, height: 24),
-          const SizedBox(height: 4),
-          _buildShimmerBox(width: 50, height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionShimmer({bool title = true, int chipCount = 4}) {
+  Widget _buildSectionShimmer({
+    bool title = true,
+    int chipCount = 4,
+    Color? baseColor,
+    Color? highlightColor,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -207,8 +256,18 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildShimmerBox(width: 60, height: 20),
-              _buildShimmerBox(width: 50, height: 16),
+              _buildShimmerBox(
+                width: 60,
+                height: 20,
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
+              _buildShimmerBox(
+                width: 50,
+                height: 16,
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
             ],
           ),
         const SizedBox(height: 12),
@@ -221,6 +280,8 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
               width: 60.0 + (index * 15) % 40,
               height: 32,
               borderRadius: 16,
+              baseColor: baseColor,
+              highlightColor: highlightColor,
             ),
           ),
         ),
@@ -228,27 +289,44 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
     );
   }
 
-  Widget _buildInfoSectionShimmer() {
+  Widget _buildInfoSectionShimmer({Color? baseColor, Color? highlightColor}) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildShimmerBox(width: 100, height: 20),
+        _buildShimmerBox(
+          width: 100,
+          height: 20,
+          baseColor: baseColor,
+          highlightColor: highlightColor,
+        ),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
+            color: isDark
+                ? colorScheme.surfaceContainerLow.withOpacity(0.8)
+                : colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
           ),
           child: Column(
             children: [
-              _buildInfoTileShimmer(),
-              Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-              _buildInfoTileShimmer(),
-              Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-              _buildInfoTileShimmer(),
+              _buildInfoTileShimmer(
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
+              Divider(height: 1, color: colorScheme.outline.withOpacity(0.2)),
+              _buildInfoTileShimmer(
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
+              Divider(height: 1, color: colorScheme.outline.withOpacity(0.2)),
+              _buildInfoTileShimmer(
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
             ],
           ),
         ),
@@ -256,20 +334,36 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
     );
   }
 
-  Widget _buildInfoTileShimmer() {
+  Widget _buildInfoTileShimmer({Color? baseColor, Color? highlightColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          _buildShimmerBox(width: 20, height: 20, borderRadius: 4),
+          _buildShimmerBox(
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            baseColor: baseColor,
+            highlightColor: highlightColor,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildShimmerBox(width: 50, height: 12),
+                _buildShimmerBox(
+                  width: 50,
+                  height: 12,
+                  baseColor: baseColor,
+                  highlightColor: highlightColor,
+                ),
                 const SizedBox(height: 4),
-                _buildShimmerBox(width: 150, height: 16),
+                _buildShimmerBox(
+                  width: 150,
+                  height: 16,
+                  baseColor: baseColor,
+                  highlightColor: highlightColor,
+                ),
               ],
             ),
           ),
@@ -278,25 +372,47 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
     );
   }
 
-  Widget _buildAccountSectionShimmer() {
+  Widget _buildAccountSectionShimmer({
+    Color? baseColor,
+    Color? highlightColor,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildShimmerBox(width: 80, height: 20),
+        _buildShimmerBox(
+          width: 80,
+          height: 20,
+          baseColor: baseColor,
+          highlightColor: highlightColor,
+        ),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
+            color: isDark
+                ? colorScheme.surfaceContainerLow.withOpacity(0.8)
+                : colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.1)),
+            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
           ),
           child: Column(
             children: [
-              _buildActionTileShimmer(),
-              Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-              _buildActionTileShimmer(),
+              _buildActionTileShimmer(
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
+              Divider(height: 1, color: colorScheme.outline.withOpacity(0.2)),
+              _buildActionTileShimmer(
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
+              Divider(height: 1, color: colorScheme.outline.withOpacity(0.2)),
+              _buildActionTileShimmer(
+                baseColor: baseColor,
+                highlightColor: highlightColor,
+              ),
             ],
           ),
         ),
@@ -304,15 +420,34 @@ class _ProfileLoadingShimmerState extends State<ProfileLoadingShimmer>
     );
   }
 
-  Widget _buildActionTileShimmer() {
+  Widget _buildActionTileShimmer({Color? baseColor, Color? highlightColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          _buildShimmerBox(width: 20, height: 20, borderRadius: 4),
+          _buildShimmerBox(
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            baseColor: baseColor,
+            highlightColor: highlightColor,
+          ),
           const SizedBox(width: 14),
-          Expanded(child: _buildShimmerBox(width: 120, height: 16)),
-          _buildShimmerBox(width: 20, height: 20, borderRadius: 4),
+          Expanded(
+            child: _buildShimmerBox(
+              width: 120,
+              height: 16,
+              baseColor: baseColor,
+              highlightColor: highlightColor,
+            ),
+          ),
+          _buildShimmerBox(
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            baseColor: baseColor,
+            highlightColor: highlightColor,
+          ),
         ],
       ),
     );

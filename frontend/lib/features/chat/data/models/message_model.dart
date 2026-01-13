@@ -1,3 +1,4 @@
+// message_model.dart
 import 'package:frontend/features/chat/domain/entities/message_entity.dart';
 
 class MessageModel extends MessageEntity {
@@ -8,6 +9,8 @@ class MessageModel extends MessageEntity {
     required super.senderName,
     required super.content,
     required super.timestamp,
+    super.replyToId,
+    super.replyToMessage,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
@@ -25,22 +28,45 @@ class MessageModel extends MessageEntity {
       senderName = 'Unknown';
     }
 
-    // Handle timestamp - could be string, DateTime, or int
+    // ✅ KEY FIX: Handle timestamp conversion from UTC to local time
+    DateTime parseTimestamp(dynamic timestamp) {
+      try {
+        if (timestamp is String) {
+          // Parse as UTC and convert to local
+          final utcTime = DateTime.parse(timestamp).toUtc();
+          return utcTime.toLocal();
+        } else if (timestamp is int) {
+          // Assume milliseconds since epoch in UTC
+          return DateTime.fromMillisecondsSinceEpoch(
+            timestamp,
+            isUtc: true,
+          ).toLocal();
+        } else {
+          return DateTime.now();
+        }
+      } catch (e) {
+        print('⚠️ Error parsing timestamp: $e');
+        return DateTime.now();
+      }
+    }
+
+    // Try multiple timestamp fields
     DateTime timestamp;
-    if (json['timestamp'] is String) {
-      timestamp = DateTime.parse(json['timestamp']);
-    } else if (json['timestamp'] is int) {
-      timestamp = DateTime.fromMillisecondsSinceEpoch(json['timestamp']);
-    } else if (json['createdAt'] is String) {
-      timestamp = DateTime.parse(json['createdAt']);
-    } else if (json['createdAt'] is int) {
-      timestamp = DateTime.fromMillisecondsSinceEpoch(json['createdAt']);
+    if (json['timestamp'] != null) {
+      timestamp = parseTimestamp(json['timestamp']);
+    } else if (json['createdAt'] != null) {
+      timestamp = parseTimestamp(json['createdAt']);
+    } else if (json['sentAt'] != null) {
+      timestamp = parseTimestamp(json['sentAt']);
     } else {
       timestamp = DateTime.now();
     }
 
     // Handle ID - could be _id or id
     final id = json['id']?.toString() ?? json['_id']?.toString() ?? '';
+
+    // Handle replyToId
+    final replyToId = json['replyToId']?.toString();
 
     return MessageModel(
       id: id,
@@ -49,6 +75,7 @@ class MessageModel extends MessageEntity {
       senderName: senderName,
       content: json['content']?.toString() ?? '',
       timestamp: timestamp,
+      replyToId: replyToId,
     );
   }
 
@@ -59,7 +86,8 @@ class MessageModel extends MessageEntity {
       'senderId': senderId,
       'senderName': senderName,
       'content': content,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': timestamp.toUtc().toIso8601String(), // ✅ Store as UTC
+      if (replyToId != null) 'replyToId': replyToId,
     };
   }
 
@@ -71,6 +99,7 @@ class MessageModel extends MessageEntity {
       senderName: senderName,
       content: content,
       timestamp: timestamp,
+      replyToId: replyToId,
     );
   }
 }

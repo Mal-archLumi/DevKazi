@@ -1,10 +1,10 @@
 // lib/features/notifications/presentation/widgets/notification_card.dart
-
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../domain/entities/notification_entity.dart';
 
-class NotificationCard extends StatelessWidget {
+class NotificationCard extends StatefulWidget {
+  // Changed to StatefulWidget
   final NotificationEntity notification;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
@@ -19,14 +19,64 @@ class NotificationCard extends StatelessWidget {
   });
 
   @override
+  State<NotificationCard> createState() => _NotificationCardState();
+}
+
+class _NotificationCardState extends State<NotificationCard> {
+  bool _isDismissing = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    if (_isDismissing) {
+      return const SizedBox.shrink(); // Return empty widget while dismissing
+    }
+
     return Dismissible(
-      key: Key(notification.id),
+      key: Key('dismissible_${widget.notification.id}'),
       direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDismiss(),
+      confirmDismiss: (direction) async {
+        // Show confirmation before dismissing
+        final confirmed = await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Delete Notification'),
+            content: const Text(
+              'Are you sure you want to delete this notification?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+        return confirmed ?? false;
+      },
+      onDismissed: (direction) {
+        setState(() {
+          _isDismissing = true; // Mark as dismissing
+        });
+
+        // Call the onDismiss callback after a short delay
+        Future.delayed(const Duration(milliseconds: 100), () {
+          widget.onDismiss();
+        });
+      },
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -39,26 +89,26 @@ class NotificationCard extends StatelessWidget {
         child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
       ),
       child: AnimatedOpacity(
-        opacity: isDeleting ? 0.5 : 1.0,
+        opacity: widget.isDeleting ? 0.5 : 1.0,
         duration: const Duration(milliseconds: 200),
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: notification.isRead
+            color: widget.notification.isRead
                 ? (isDark ? Colors.grey.shade900 : Colors.grey.shade50)
                 : (isDark
                       ? Colors.green.shade900.withOpacity(0.2)
                       : Colors.green.shade50),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: notification.isRead
+              color: widget.notification.isRead
                   ? (isDark ? Colors.grey.shade800 : Colors.grey.shade200)
                   : Colors.green.shade300.withOpacity(0.3),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: notification.isRead
+                color: widget.notification.isRead
                     ? Colors.black.withOpacity(0.03)
                     : Colors.green.withOpacity(0.08),
                 blurRadius: 8,
@@ -69,7 +119,7 @@ class NotificationCard extends StatelessWidget {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: onTap,
+              onTap: widget.onTap,
               borderRadius: BorderRadius.circular(16),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -86,17 +136,17 @@ class NotificationCard extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  notification.title,
+                                  widget.notification.title,
                                   style: TextStyle(
                                     fontSize: 16,
-                                    fontWeight: notification.isRead
+                                    fontWeight: widget.notification.isRead
                                         ? FontWeight.w600
                                         : FontWeight.bold,
                                     color: theme.colorScheme.onSurface,
                                   ),
                                 ),
                               ),
-                              if (!notification.isRead)
+                              if (!widget.notification.isRead)
                                 Container(
                                   width: 10,
                                   height: 10,
@@ -116,7 +166,7 @@ class NotificationCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            notification.message,
+                            widget.notification.message,
                             style: TextStyle(
                               fontSize: 14,
                               color: theme.colorScheme.onSurface.withOpacity(
@@ -139,7 +189,7 @@ class NotificationCard extends StatelessWidget {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                timeago.format(notification.createdAt),
+                                timeago.format(widget.notification.createdAt),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: theme.colorScheme.onSurface
@@ -168,7 +218,7 @@ class NotificationCard extends StatelessWidget {
     Color iconColor;
     Color bgColor;
 
-    switch (notification.type) {
+    switch (widget.notification.type) {
       case NotificationType.joinRequest:
         iconData = Icons.person_add_rounded;
         iconColor = Colors.blue.shade600;

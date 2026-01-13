@@ -3,7 +3,7 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/notification_entity.dart';
 
-enum NotificationsStatus { initial, loading, success, error, deleting }
+enum NotificationsStatus { initial, loading, success, error, deleting, loaded }
 
 class NotificationsState extends Equatable {
   final NotificationsStatus status;

@@ -17,6 +17,7 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
   final _descriptionController = TextEditingController();
   final _scrollController = ScrollController();
   bool _showSuccess = false;
+  bool _redirecting = false;
 
   @override
   void initState() {
@@ -53,21 +54,26 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
     setState(() {
       _showSuccess = true;
     });
-    // Optional delay before callback to let the user see the success animation
-    Future.delayed(const Duration(seconds: 2), () {
+
+    // Show success message briefly then redirect
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
-        widget.onTeamCreated?.call();
+        setState(() {
+          _redirecting = true;
+        });
+
+        // Redirect to teams list page after a brief moment
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            // Navigate back to teams list page
+            Navigator.of(context).pushReplacementNamed('/teams');
+
+            // Optional: Show snackbar on teams page
+            widget.onTeamCreated?.call();
+          }
+        });
       }
     });
-  }
-
-  void _resetForm() {
-    setState(() {
-      _showSuccess = false;
-    });
-    _nameController.clear();
-    _descriptionController.clear();
-    context.read<CreateTeamCubit>().reset();
   }
 
   @override
@@ -80,59 +86,70 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
           _onSuccess();
         }
       },
-      child: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        body: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: Stack(
-            children: [
-              // 1. Background Decor
-              Positioned(
-                top: -100,
-                right: -100,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.05),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 100,
-                left: -50,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.secondary.withOpacity(0.05),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-
-              // 2. Main Content
-              _showSuccess ? _buildSuccessView() : _buildFormView(),
-
-              // 3. Custom App Bar Overlay
-              if (!_showSuccess)
+      child: WillPopScope(
+        onWillPop: () async {
+          // Prevent back navigation when redirecting or showing success
+          if (_showSuccess || _redirecting) {
+            return false;
+          }
+          return true;
+        },
+        child: Scaffold(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          body: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: Stack(
+              children: [
+                // 1. Background Decor
                 Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: AppBar(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      onPressed: () => Navigator.pop(context),
+                  top: -100,
+                  right: -100,
+                  child: Container(
+                    width: 300,
+                    height: 300,
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.05),
+                      shape: BoxShape.circle,
                     ),
                   ),
                 ),
-            ],
+                Positioned(
+                  top: 100,
+                  left: -50,
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.secondary.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+
+                // 2. Main Content
+                _redirecting
+                    ? _buildRedirectingView()
+                    : (_showSuccess ? _buildSuccessView() : _buildFormView()),
+
+                // 3. Custom App Bar Overlay - Only show when in form view
+                if (!_showSuccess && !_redirecting)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: AppBar(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      leading: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -462,7 +479,7 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
             ),
             const SizedBox(height: 32),
             Text(
-              'Squad Assembled!',
+              'Team Created Successfully!',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
@@ -471,47 +488,42 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Team "${_nameController.text}" is ready for action.',
+              'Redirecting to teams list...',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 48),
-
-            // Success Actions
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _resetForm,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text('Create Another Team'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: widget.onTeamCreated,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text('Go to My Teams'),
-              ),
-            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRedirectingView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 80,
+            height: 80,
+            child: CircularProgressIndicator(
+              strokeWidth: 4,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'Taking you to your teams...',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
       ),
     );
   }

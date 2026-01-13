@@ -1,11 +1,14 @@
-// lib/features/auth/presentation/cubit/auth_cubit.dart
+// lib/features/auth/presentation/cubit/auth_cubit.dart - UPDATED
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
 import 'package:frontend/features/auth/domain/entities/user_entity.dart';
-import 'package:frontend/features/auth/domain/entities/tokens_entity.dart'; // Add this
 import 'package:frontend/features/auth/domain/use_cases/login_usecase.dart';
 import 'package:frontend/features/auth/domain/use_cases/signup_usecase.dart';
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
+import 'package:frontend/core/services/token_refresh_service.dart'; // Add this
 
 part 'auth_state.dart';
 
@@ -13,6 +16,8 @@ class AuthCubit extends Cubit<AuthState> {
   final LoginUseCase loginUseCase;
   final SignUpUseCase signUpUseCase;
   final AuthRepository authRepository;
+  final TokenRefreshService _tokenService = TokenRefreshService(); // Add this
+  Timer? _tokenRefreshTimer; // Add this
 
   AuthCubit({
     required this.loginUseCase,
@@ -27,17 +32,25 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final tokens = await authRepository.getTokens();
       if (tokens.accessToken.isNotEmpty) {
-        // Verify token is still valid - handle Either type properly
-        final userResult = await authRepository.getCurrentUser();
-        userResult.fold(
-          (failure) {
-            print('Failed to load current user: ${failure.message}');
-            // Keep as AuthInitial if loading fails
-          },
-          (user) {
-            emit(AuthAuthenticated(user));
-          },
-        );
+        // Verify token is still valid using refresh service
+        final validToken = await _tokenService.getValidAccessToken();
+
+        if (validToken != null) {
+          // Get user data
+          final userResult = await authRepository.getCurrentUser();
+          userResult.fold(
+            (failure) {
+              print('Failed to load current user: ${failure.message}');
+              // Keep as AuthInitial if loading fails
+            },
+            (user) {
+              _startTokenRefreshTimer(); // Start refresh timer
+              emit(AuthAuthenticated(user));
+            },
+          );
+        } else {
+          print('Token is not valid, requiring re-login');
+        }
       }
     } catch (e) {
       print('Error loading saved auth state: $e');
@@ -45,7 +58,7 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // ... rest of your existing methods remain the same
+  // ... rest of your existing methods remain the same until after success cases
   Future<void> login(String email, String password) async {
     if (state is AuthLoading) return;
 
@@ -67,6 +80,7 @@ class AuthCubit extends Cubit<AuthState> {
           }
 
           await authRepository.saveTokens(user.accessToken, user.refreshToken);
+          _startTokenRefreshTimer(); // ADD THIS LINE
           emit(AuthAuthenticated(user));
         },
       );
@@ -98,6 +112,7 @@ class AuthCubit extends Cubit<AuthState> {
           }
 
           await authRepository.saveTokens(user.accessToken, user.refreshToken);
+          _startTokenRefreshTimer(); // ADD THIS LINE
           emit(AuthAuthenticated(user));
         },
       );
@@ -120,6 +135,7 @@ class AuthCubit extends Cubit<AuthState> {
         }
 
         await authRepository.saveTokens(user.accessToken, user.refreshToken);
+        _startTokenRefreshTimer(); // ADD THIS LINE
         emit(AuthAuthenticated(user));
       });
     } catch (error) {
@@ -140,6 +156,7 @@ class AuthCubit extends Cubit<AuthState> {
         }
 
         await authRepository.saveTokens(user.accessToken, user.refreshToken);
+        _startTokenRefreshTimer(); // ADD THIS LINE
         emit(AuthAuthenticated(user));
       });
     } catch (error) {
@@ -147,7 +164,16 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  void logout() {
+  // UPDATED logout method
+  void logout() async {
+    _stopTokenRefreshTimer(); // Stop the refresh timer
+
+    try {
+      await authRepository.clearTokens();
+    } catch (e) {
+      print('Error clearing tokens: $e');
+    }
+
     emit(AuthInitial());
   }
 
@@ -159,5 +185,42 @@ class AuthCubit extends Cubit<AuthState> {
 
   void resetState() {
     emit(AuthInitial());
+  }
+
+  // ADD THESE NEW METHODS for token refresh management
+  void _startTokenRefreshTimer() {
+    _stopTokenRefreshTimer(); // Stop any existing timer
+
+    // Check token every 5 minutes (adjust as needed)
+    _tokenRefreshTimer = Timer.periodic(const Duration(minutes: 5), (
+      timer,
+    ) async {
+      try {
+        final currentState = state;
+        if (currentState is AuthAuthenticated) {
+          final token = await _tokenService.getValidAccessToken();
+          if (token == null) {
+            // Token refresh failed - log out
+            debugPrint('🔴 Token refresh failed in timer, logging out...');
+            logout();
+          } else {
+            debugPrint('🔄 Token refresh check completed successfully');
+          }
+        }
+      } catch (e) {
+        debugPrint('🔴 Error in token refresh timer: $e');
+      }
+    });
+  }
+
+  void _stopTokenRefreshTimer() {
+    _tokenRefreshTimer?.cancel();
+    _tokenRefreshTimer = null;
+  }
+
+  @override
+  Future<void> close() {
+    _stopTokenRefreshTimer();
+    return super.close();
   }
 }

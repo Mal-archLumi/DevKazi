@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User, UserDocument } from './schemas/user.schema';
+import { User, UserDocument, UserRole } from './schemas/user.schema';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto, PublicUserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UsersService {
+  logger: any;
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
@@ -21,8 +22,12 @@ export class UsersService {
   }
 
   async create(userData: Partial<User>): Promise<UserDocument> {
-    const user = new this.userModel(userData);
-    return user.save();
+    const user = await this.userModel.create({
+      ...userData,
+      role: userData.role || UserRole.USER,
+      permissions: userData.permissions || [],
+    });
+    return user;
   }
 
   async update(id: string, updateData: Partial<User>): Promise<UserDocument | null> {
@@ -80,18 +85,33 @@ export class UsersService {
   }
 
   async deleteAccount(userId: string): Promise<void> {
-    const user = await this.userModel.findById(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    
-    // Soft delete
-    await this.userModel.findByIdAndUpdate(userId, {
-      isActive: false,
-      email: `deleted-${Date.now()}-${user.email}`,
-      updatedAt: new Date(),
-    });
+  const user = await this.userModel.findById(userId);
+  if (!user) {
+    throw new NotFoundException('User not found');
   }
+  
+  // IMPORTANT: We do NOT delete the user document completely
+  // Instead, we anonymize it and mark as inactive
+  
+  const deletedEmail = `deleted-${Date.now()}-${user.email}`;
+  
+  await this.userModel.findByIdAndUpdate(userId, {
+    isActive: false,
+    email: deletedEmail,
+    name: 'Deleted User',
+    picture: null,
+    bio: '',
+    skills: [],
+    isProfilePublic: false,
+    updatedAt: new Date(),
+    // Keep the original _id so messages can still reference this user
+  }, { new: true });
+  
+  this.logger.log(`User account anonymized: ${userId} -> ${deletedEmail}`);
+  
+  // Note: User's messages will remain in the database
+  // but will show "Deleted User" when populated
+}
 
   // Skills management
   async addSkills(userId: string, skills: string[]): Promise<UserResponseDto> {

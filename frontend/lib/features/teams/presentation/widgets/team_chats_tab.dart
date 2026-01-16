@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -40,6 +42,11 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
   // Track if we should scroll to bottom on initial load
   bool _isInitialLoad = true;
 
+  // Track connection retry attempts
+  int _connectionRetryCount = 0;
+  static const int _maxRetries = 3;
+  Timer? _retryTimer;
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +66,22 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     });
   }
 
-  void _connectToChat() {
+  Future<void> _connectToChat({bool isRetry = false}) async {
+    if (isRetry) {
+      _connectionRetryCount++;
+      if (_connectionRetryCount > _maxRetries) {
+        debugPrint('🔄 Max retry attempts reached for team ${widget.teamId}');
+        return;
+      }
+
+      debugPrint(
+        '🔄 Retry attempt $_connectionRetryCount for team ${widget.teamId}',
+      );
+      await Future.delayed(Duration(seconds: _connectionRetryCount * 2));
+    } else {
+      _connectionRetryCount = 0;
+    }
+
     if (_lastConnectedTeamId != widget.teamId) {
       debugPrint('🔄 TeamChatsTab: Connecting to team ${widget.teamId}');
       _chatCubit.connectToChat(
@@ -84,8 +106,15 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
         '🔄 TeamChatsTab: Team changed from ${oldWidget.teamId} to ${widget.teamId}',
       );
 
+      // Cancel any pending retry timer
+      _retryTimer?.cancel();
+      _retryTimer = null;
+
       // Clear text input
       _messageController.clear();
+
+      // Reset retry counter
+      _connectionRetryCount = 0;
 
       // Connect to new team
       _connectToChat();
@@ -112,6 +141,25 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     debugPrint('🔄 Refreshing chat for team ${widget.teamId}');
     _chatCubit.loadMessages(widget.teamId);
     await Future.delayed(const Duration(milliseconds: 500));
+  }
+
+  Future<void> _onManualReconnect() async {
+    debugPrint('🔄 Manual reconnect requested for team ${widget.teamId}');
+
+    // Show loading state
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Reconnecting...'),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    // Reset retry counter
+    _connectionRetryCount = 0;
+
+    // Reconnect
+    await _connectToChat();
   }
 
   void _scrollToBottom({bool animate = true}) {
@@ -449,6 +497,104 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
     );
   }
 
+  Widget _buildConnectionStatus(ChatState state) {
+    final isConnected = state.isConnected;
+    final isConnecting = state.status == ChatStatus.connecting;
+    final hasAuthError =
+        state.errorMessage?.toLowerCase().contains('jwt') == true ||
+        state.errorMessage?.toLowerCase().contains('token') == true ||
+        state.errorMessage?.toLowerCase().contains('auth') == true ||
+        state.errorMessage?.toLowerCase().contains('expired') == true;
+
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+
+    if (isConnecting) {
+      statusColor = Colors.orange;
+      statusText = 'Connecting...';
+      statusIcon = Icons.circle_outlined;
+    } else if (isConnected) {
+      statusColor = Colors.green;
+      statusText = 'Connected';
+      statusIcon = Icons.circle;
+    } else {
+      statusColor = Colors.red;
+      statusText = 'Disconnected';
+      statusIcon = Icons.circle_outlined;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: statusColor.withOpacity(0.1),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isConnecting)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: statusColor,
+              ),
+            )
+          else
+            Icon(statusIcon, size: 8, color: statusColor),
+          const SizedBox(width: 8),
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: statusColor,
+            ),
+          ),
+          if (!isConnected && !isConnecting) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _onManualReconnect,
+              child: Row(
+                children: [
+                  Text(
+                    '• Tap to reconnect',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (_connectionRetryCount > 0)
+                    Text(
+                      ' ($_connectionRetryCount/$_maxRetries)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (hasAuthError) ...[
+            const SizedBox(width: 8),
+            Text(
+              '• Session expired',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.orange,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
@@ -456,13 +602,50 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
       child: BlocConsumer<ChatCubit, ChatState>(
         listener: (context, state) {
           if (state.status == ChatStatus.error && mounted) {
+            // Check if it's an auth error
+            final isAuthError =
+                state.errorMessage?.toLowerCase().contains('jwt') == true ||
+                state.errorMessage?.toLowerCase().contains('token') == true ||
+                state.errorMessage?.toLowerCase().contains('auth') == true ||
+                state.errorMessage?.toLowerCase().contains('expired') == true;
+
+            if (isAuthError) {
+              // Auto-retry on auth errors after a delay
+              _retryTimer?.cancel();
+              _retryTimer = Timer(const Duration(seconds: 3), () {
+                if (mounted && !state.isConnected) {
+                  _connectToChat(isRetry: true);
+                }
+              });
+            }
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage ?? 'An error occurred'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 2),
+                backgroundColor: isAuthError ? Colors.orange : Colors.red,
+                duration: const Duration(seconds: 3),
+                action: isAuthError
+                    ? SnackBarAction(
+                        label: 'Retry',
+                        textColor: Colors.white,
+                        onPressed: _onManualReconnect,
+                      )
+                    : null,
               ),
             );
+          }
+
+          // Handle connection state changes
+          if (state.status == ChatStatus.connected &&
+              !state.isConnected &&
+              mounted) {
+            // Auto-retry on unexpected disconnection
+            _retryTimer?.cancel();
+            _retryTimer = Timer(const Duration(seconds: 5), () {
+              if (mounted && !state.isConnected) {
+                _connectToChat(isRetry: true);
+              }
+            });
           }
 
           // ✅ KEY FIX: Scroll to bottom when messages are first loaded
@@ -490,8 +673,6 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
           }
         },
         builder: (context, state) {
-          final isConnected = state.isConnected;
-
           if (state.status == ChatStatus.connecting ||
               (state.status == ChatStatus.loading && state.messages.isEmpty)) {
             return const Center(child: CircularProgressIndicator());
@@ -501,46 +682,8 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
             children: [
               _buildActionAppBar(state),
 
-              // Connection status
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                color: isConnected
-                    ? Colors.green.withOpacity(0.1)
-                    : Colors.red.withOpacity(0.1),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isConnected ? Icons.circle : Icons.circle_outlined,
-                      size: 8,
-                      color: isConnected ? Colors.green : Colors.red,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isConnected ? 'Connected' : 'Disconnected',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isConnected ? Colors.green : Colors.red,
-                      ),
-                    ),
-                    if (!isConnected) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _onRefresh,
-                        child: Text(
-                          '• Tap to reconnect',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              // Connection status with improved UI
+              _buildConnectionStatus(state),
 
               // Messages
               Expanded(
@@ -629,6 +772,7 @@ class _TeamChatsTabState extends State<TeamChatsTab> {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.removeListener(_scrollListener);

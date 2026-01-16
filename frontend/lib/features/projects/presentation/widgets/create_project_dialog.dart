@@ -36,9 +36,32 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
 
   final List<TimelinePhase> _timeline = [];
   bool _isCreating = false;
+  bool _isDialogOpen = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add initial timeline phase
+    _addInitialTimelinePhase();
+  }
+
+  void _addInitialTimelinePhase() {
+    final nextWeek = DateTime.now().add(const Duration(days: 7));
+    _timeline.add(
+      TimelinePhase(
+        id: UniqueKey().toString(),
+        phase: 'Phase 1',
+        description: '',
+        startDate: DateTime.now(),
+        endDate: nextWeek,
+        status: 'planned',
+      ),
+    );
+  }
 
   @override
   void dispose() {
+    _isDialogOpen = false;
     _nameController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -46,104 +69,123 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.all(20),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-          maxWidth: 600,
-        ),
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Create New Project'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) {
+        if (didPop) {
+          _isDialogOpen = false;
+        }
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxWidth: 600,
           ),
-          body: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Project Name
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Project Name',
-                      hintText: 'Enter project name',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a project name';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Description
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      hintText: 'Describe the project',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Assignments Section
-                  _buildAssignmentsSection(),
-                  const SizedBox(height: 24),
-
-                  // Timeline Section
-                  _buildTimelineSection(),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-          ),
-          bottomNavigationBar: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isCreating ? null : _createProject,
-                    child: _isCreating
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Create Project'),
-                  ),
+          child: Scaffold(
+            resizeToAvoidBottomInset: true,
+            appBar: AppBar(
+              title: const Text('Create New Project'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
+            ),
+            body: Form(
+              key: _formKey,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 32,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Project Name
+                          TextFormField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Project Name',
+                              hintText: 'Enter project name',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a project name';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Description
+                          TextFormField(
+                            controller: _descriptionController,
+                            decoration: const InputDecoration(
+                              labelText: 'Description',
+                              hintText: 'Describe the project',
+                              border: OutlineInputBorder(),
+                              alignLabelWithHint: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Assignments Section
+                          _buildAssignmentsSection(),
+                          const SizedBox(height: 24),
+
+                          // Timeline Section
+                          _buildTimelineSection(),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            bottomNavigationBar: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isCreating ? null : _createProject,
+                      child: _isCreating
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Create Project'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -170,97 +212,29 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
           final index = entry.key;
           final assignment = entry.value;
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Role Selection
-                  DropdownButtonFormField<String>(
-                    initialValue: assignment.role,
-                    decoration: const InputDecoration(
-                      labelText: 'Role',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                    ),
-                    isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'frontend',
-                        child: Text('Frontend Developer'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'backend',
-                        child: Text('Backend Developer'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'ui',
-                        child: Text('UI/UX Designer'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'fullstack',
-                        child: Text('Full Stack Developer'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _assignments[index] = assignment.copyWith(
-                          role: value!,
-                          assignedTo: assignment.assignedTo,
-                        );
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Assigned To (Team Member Name)
-                  TextFormField(
-                    initialValue: assignment.assignedTo ?? '',
-                    decoration: const InputDecoration(
-                      labelText: 'Assigned To',
-                      hintText: 'Enter team member name',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                    ),
-                    onChanged: (value) {
-                      _assignments[index] = assignment.copyWith(
-                        assignedTo: value,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Tasks
-                  TextFormField(
-                    initialValue: assignment.tasks,
-                    decoration: const InputDecoration(
-                      labelText: 'Tasks',
-                      hintText: 'Enter tasks for this role',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                    ),
-                    maxLines: 2,
-                    onChanged: (value) {
-                      _assignments[index] = assignment.copyWith(
-                        tasks: value,
-                        assignedTo: assignment.assignedTo,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
+          return _AssignmentCard(
+            key: ValueKey('assignment_$index'),
+            assignment: assignment,
+            onRoleChanged: (value) {
+              if (!_isDialogOpen) return;
+              setState(() {
+                _assignments[index] = assignment.copyWith(
+                  role: value!,
+                  assignedTo: assignment.assignedTo,
+                );
+              });
+            },
+            onAssignedToChanged: (value) {
+              if (!_isDialogOpen) return;
+              _assignments[index] = assignment.copyWith(assignedTo: value);
+            },
+            onTasksChanged: (value) {
+              if (!_isDialogOpen) return;
+              _assignments[index] = assignment.copyWith(
+                tasks: value,
+                assignedTo: assignment.assignedTo,
+              );
+            },
           );
         }),
 
@@ -272,7 +246,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
                 _assignments.add(
                   ProjectAssignment(
                     userId: null,
-                    role: 'frontend', // Changed from 'custom' to 'frontend'
+                    role: 'frontend',
                     tasks: '',
                     assignedTo: '',
                   ),
@@ -348,194 +322,26 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
             final index = entry.key;
             final phase = entry.value;
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            initialValue: phase.phase,
-                            decoration: const InputDecoration(
-                              labelText: 'Phase Name',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
-                            onChanged: (value) {
-                              _timeline[index] = phase.copyWith(phase: value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            size: 20,
-                            color: Colors.red,
-                          ),
-                          onPressed: () => _removeTimelinePhase(index),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    TextFormField(
-                      initialValue: phase.description,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        hintText: 'What needs to be delivered?',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      maxLines: 2,
-                      onChanged: (value) {
-                        _timeline[index] = phase.copyWith(description: value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Date pickers in vertical layout
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Start Date
-                        InkWell(
-                          onTap: () => _selectStartDate(index),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Start Date',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _formatDate(phase.startDate),
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 18,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // End Date
-                        InkWell(
-                          onTap: () => _selectEndDate(index),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'End Date',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _formatDate(phase.endDate),
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 18,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Status selection for timeline phases
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: phase.status,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'planned',
-                          child: Text('Planned'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'in-progress',
-                          child: Text('In Progress'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'completed',
-                          child: Text('Completed'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _timeline[index] = phase.copyWith(status: value!);
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
+            return _TimelinePhaseCard(
+              key: ValueKey('timeline_${phase.id}'),
+              phase: phase,
+              onPhaseChanged: (value) {
+                if (!_isDialogOpen) return;
+                _timeline[index] = phase.copyWith(phase: value);
+              },
+              onDescriptionChanged: (value) {
+                if (!_isDialogOpen) return;
+                _timeline[index] = phase.copyWith(description: value);
+              },
+              onStartDateSelected: () => _selectStartDate(index),
+              onEndDateSelected: () => _selectEndDate(index),
+              onStatusChanged: (value) {
+                if (!_isDialogOpen) return;
+                setState(() {
+                  _timeline[index] = phase.copyWith(status: value!);
+                });
+              },
+              onDelete: () => _removeTimelinePhase(index),
             );
           }),
       ],
@@ -572,7 +378,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
-    if (selectedDate != null) {
+    if (selectedDate != null && _isDialogOpen) {
       setState(() {
         _timeline[index] = _timeline[index].copyWith(startDate: selectedDate);
       });
@@ -587,7 +393,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
       lastDate: DateTime.now().add(const Duration(days: 730)),
     );
 
-    if (selectedDate != null) {
+    if (selectedDate != null && _isDialogOpen) {
       setState(() {
         _timeline[index] = _timeline[index].copyWith(endDate: selectedDate);
       });
@@ -630,7 +436,8 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
         timeline: _timeline,
       );
 
-      if (mounted) {
+      if (mounted && _isDialogOpen) {
+        _isDialogOpen = false;
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -641,7 +448,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isDialogOpen) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to create project: ${e.toString()}'),
@@ -652,5 +459,321 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
         setState(() => _isCreating = false);
       }
     }
+  }
+}
+
+class _AssignmentCard extends StatelessWidget {
+  final ProjectAssignment assignment;
+  final ValueChanged<String?> onRoleChanged;
+  final ValueChanged<String> onAssignedToChanged;
+  final ValueChanged<String> onTasksChanged;
+
+  const _AssignmentCard({
+    required this.assignment,
+    required this.onRoleChanged,
+    required this.onAssignedToChanged,
+    required this.onTasksChanged,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Role Selection
+            DropdownButtonFormField<String>(
+              value: assignment.role,
+              decoration: const InputDecoration(
+                labelText: 'Role',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(
+                  value: 'frontend',
+                  child: Text('Frontend Developer'),
+                ),
+                DropdownMenuItem(
+                  value: 'backend',
+                  child: Text('Backend Developer'),
+                ),
+                DropdownMenuItem(value: 'ui', child: Text('UI/UX Designer')),
+                DropdownMenuItem(
+                  value: 'fullstack',
+                  child: Text('Full Stack Developer'),
+                ),
+              ],
+              onChanged: onRoleChanged,
+            ),
+            const SizedBox(height: 12),
+
+            // Assigned To (Team Member Name)
+            TextFormField(
+              initialValue: assignment.assignedTo ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Assigned To',
+                hintText: 'Enter team member name',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              onChanged: onAssignedToChanged,
+            ),
+            const SizedBox(height: 12),
+
+            // Tasks
+            TextFormField(
+              initialValue: assignment.tasks,
+              decoration: const InputDecoration(
+                labelText: 'Tasks',
+                hintText: 'Enter tasks for this role',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              maxLines: 2,
+              onChanged: onTasksChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimelinePhaseCard extends StatefulWidget {
+  final TimelinePhase phase;
+  final ValueChanged<String> onPhaseChanged;
+  final ValueChanged<String> onDescriptionChanged;
+  final VoidCallback onStartDateSelected;
+  final VoidCallback onEndDateSelected;
+  final ValueChanged<String?> onStatusChanged;
+  final VoidCallback onDelete;
+
+  const _TimelinePhaseCard({
+    required this.phase,
+    required this.onPhaseChanged,
+    required this.onDescriptionChanged,
+    required this.onStartDateSelected,
+    required this.onEndDateSelected,
+    required this.onStatusChanged,
+    required this.onDelete,
+    super.key,
+  });
+
+  @override
+  State<_TimelinePhaseCard> createState() => __TimelinePhaseCardState();
+}
+
+class __TimelinePhaseCardState extends State<_TimelinePhaseCard> {
+  late TextEditingController _phaseController;
+  late TextEditingController _descriptionController;
+
+  @override
+  void initState() {
+    super.initState();
+    _phaseController = TextEditingController(text: widget.phase.phase);
+    _descriptionController = TextEditingController(
+      text: widget.phase.description,
+    );
+  }
+
+  @override
+  void dispose() {
+    _phaseController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _phaseController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phase Name',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: widget.onPhaseChanged,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                  onPressed: widget.onDelete,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                hintText: 'What needs to be delivered?',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              maxLines: 2,
+              onChanged: widget.onDescriptionChanged,
+            ),
+            const SizedBox(height: 12),
+
+            // Date pickers in vertical layout
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Start Date
+                InkWell(
+                  onTap: widget.onStartDateSelected,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Start Date',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatDate(widget.phase.startDate),
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 18,
+                          color: Colors.grey.shade600,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // End Date
+                InkWell(
+                  onTap: widget.onEndDateSelected,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'End Date',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatDate(widget.phase.endDate),
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 18,
+                          color: Colors.grey.shade600,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Status selection for timeline phases
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: widget.phase.status,
+              decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: 'planned', child: Text('Planned')),
+                DropdownMenuItem(
+                  value: 'in-progress',
+                  child: Text('In Progress'),
+                ),
+                DropdownMenuItem(value: 'completed', child: Text('Completed')),
+              ],
+              onChanged: widget.onStatusChanged,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
